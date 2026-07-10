@@ -4,14 +4,6 @@
 
 # OPENBEATS
 
-```
- ██████╗ ██████╗ ███████╗███╗  _nb██╗ █████╗ ████████╗██╗   ██╗███████╗
-██╔═══██╗██╔══██╗██╔════╝████╗  ██║██╔══██╗╚══██╔══╝██║   ██║██╔════╝
-██║   ██║██████╔╝█████╗  ██╔██╗ ██║███████║   ██║   ██║   ██║███████╗
-██║   ██║██╔═══╝ ██╔══╝  ██║╚██╗██║██╔══██║   ██║   ██║   ██║╚════██║
-╚██████╔╝██║     ███████╗██║ ╚████║██║  ██║   ██║   ╚██████╔╝███████║
- ╚═════╝ ╚═╝     ╚══════╝╚═╝  ╚═══╝╚═╝  ╚═╝   ╚═╝    ╚═════╝ ╚══════╝
-```
 
 ### The YouTube Music app you always wanted
 
@@ -64,16 +56,6 @@ Experience lyrics like never before:
 - Smooth animations
 - Translation support
 - Fully immersive playback
-
----
-
-## Screenshots
-
-| Home | Now Playing | Library | Settings |
-|------|-------------|---------|----------|
-| ![Home](screenshots/Home.png) | ![Player](screenshots/Now%20Playing.png) | ![Library](screenshots/Library.png) | ![Settings](screenshots/Settings.png) |
-
----
 
 ## Features
 
