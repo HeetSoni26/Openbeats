@@ -1,0 +1,10 @@
+Velune v1.10 -The Community & bug fixes update!
+
+.Added Official Discord Community link in About page.
+.Rebuild "Listen Together" backend for stable syncing
+.Added Updated Velune Server for Velune ListenTogether.
+.Fixed an issue where playback would stop after 1 min.
+.Fixed a bug causing a blank screen when sharing songs from YouTube.
+.Fixed UI glitching on Account page.
+.ListenTogether is now live in this version.
+.General bug fixes and stability improvements.

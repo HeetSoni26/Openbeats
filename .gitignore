@@ -1,0 +1,43 @@
+# --- Velune Module Build Folders ---
+**/build/
+/app/build
+/lrclib/build
+/kizzy/build
+/kugou/build
+/lastfm/build
+/betterlyrics/build
+/canvas/build
+/simpmusic/build
+/innertube/build
+
+# --- Standard Android Ignores ---
+*.apk
+*.ap_
+*.aab
+*.dex
+*.class
+
+# Generated files & Gradle Cache
+bin/
+gen/
+out/
+.gradle/
+.kotlin/
+app/universal/release/
+
+# Local configuration file
+local.properties
+
+# Android Studio IDE files
+*.iml
+.idea/
+.DS_Store
+captures/
+
+# --- CRITICAL SECURITY ---
+*.jks
+*.keystore
+*.properties
+!gradle.properties
+*.log
+

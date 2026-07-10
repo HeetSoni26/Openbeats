@@ -1,0 +1,18 @@
+
+<svg width="512" height="512" viewBox= "0 0 100 100"
+
+xmlns="http://www.w3.org/2000/svg">
+
+<path d= "M 25 35 L 50 75 L 75 35 L 55 20 L 48 30"
+
+fill="none"
+
+stroke="#EAEAE0"
+
+stroke-width="14"
+
+stroke-linecap="round"
+
+stroke-linejoin="round" />
+
+</svg>

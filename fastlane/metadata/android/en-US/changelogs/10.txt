@@ -1,0 +1,14 @@
+v1.1.2 - New Logo, Widget, & Massive Stability Updates
+
+✨ New Features:
+• Fresh New Look: Velune has a brand new logo! A massive thank you to the community member from our Discord for designing and providing the new app icon.
+• Home Screen Widget: Added a brand new widget so you can control your music and access Velune directly from your home screen.
+
+🛠️ Fixes & Improvements:
+• Playback Reliability (Client Cycle Fallback): Implemented a robust new fallback system to automatically bypass YouTube's HTTP 404 and Error 2000 roadblocks, ensuring your streams start consistently.
+• Offline Downloading Overhaul: Completely fixed `DownloadUtil` to stabilize background downloads. Resolved the ExoPlayer URL chunking conflicts and 403 Forbidden errors so your offline cache works perfectly.
+• Search Tab Restored: Built a "Master Workaround" parser for the search page. This defeats YouTube's A/B testing and ensures that Songs, Albums, and Artists always populate correctly under the "All" tab.
+• Minor UI polish, background crash fixes, and general performance improvements.
+
+Thank you for using Velune!
+

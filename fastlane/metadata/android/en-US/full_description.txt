@@ -1,0 +1,26 @@
+Velune is a premium ad-free YouTube Music client for Android built with Kotlin and Jetpack Compose.
+
+Features:
+
+- Ad-free YouTube Music playback
+- Background playback with battery optimization
+- Personalized Quick Picks and Keep Listening sections
+- Offline caching and downloads for playback without internet
+- Synced word-by-word lyrics with translation support
+- Material You dynamic theming that adapts to album art colors
+- Search for songs, albums, artists, playlists and videos
+- YouTube Music account login and library sync
+- Import playlists from YouTube Music
+- Gapless playback and crossfade
+- Silence skipping
+- Audio normalization (EBU R128)
+- Tempo and pitch control
+- Sleep timer
+- Discord Rich Presence integration
+- Last.fm and ListenBrainz scrobbling
+- Light, Dark, AMOLED and Dynamic themes
+- Local playlist management
+- Reorder songs in playlist or queue
+- Customizable home feed with mood chips
+
+Velune is an independent third-party client. Not affiliated with Google LLC or YouTube.

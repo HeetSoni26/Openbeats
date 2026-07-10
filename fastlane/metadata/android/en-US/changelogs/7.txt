@@ -1,0 +1,11 @@
+• Search icon moved to top bar beside Settings icon
+• Stats and History added to bottom navigation bar
+• Completely redesigned Settings page
+• Account and login integrated into Settings
+• Full TalkBack screen reader support
+• All player buttons labeled for accessibility
+• Shuffle and Repeat state descriptions added
+• Seek bar accessibility improvements
+• Now playing live region announcements
+• Mini player fully accessible
+• Smooth animations and improved navigation flow
