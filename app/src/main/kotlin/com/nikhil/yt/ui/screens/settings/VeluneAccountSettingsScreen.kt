@@ -54,7 +54,7 @@ import com.nikhil.yt.utils.dataStore
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun VeluneAccountSettingsScreen(
+fun OpenbeatsAccountSettingsScreen(
     navController: NavController,
 ) {
     val context = LocalContext.current

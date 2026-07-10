@@ -22,8 +22,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalUriHandler
-import androidx.compose.ui.platform.UriHandler
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -138,7 +136,7 @@ fun AboutScreen(
                 SectionTitle("DEVELOPER")
                 Spacer(Modifier.height(8.dp))
                 AboutItemCard(
-                    iconUrl = "https://github.com/HeetSoni26.png",
+                    iconUrl = "https://avatars.githubusercontent.com/HeetSoni26",
                     title = "Heet Soni",
                     subtitle = "App Developer & Maintainer",
                     onClick = { uriHandler.openUri("https://github.com/HeetSoni26") }
@@ -157,12 +155,7 @@ fun AboutScreen(
                     onClick = { uriHandler.openUri("https://github.com/HeetSoni26/Openbeats") }
                 )
                 Spacer(Modifier.height(24.dp))
-
-                SupportDeveloperCard()
-
-                Spacer(Modifier.height(24.dp))
             }
-
 
             // --- APP INFO SECTION ---
             item {
@@ -273,82 +266,6 @@ fun AboutItemCard(
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
-        }
-    }
-}
-fun launchUpiPayment(context: android.content.Context, upiId: String, payeeName: String) {
-    val note = "Support for Openbeats"
-    val uriString = "upi://pay?pa=$upiId&pn=${android.net.Uri.encode(payeeName)}&tn=${android.net.Uri.encode(note)}&cu=INR"
-    val uri = android.net.Uri.parse(uriString)
-    val intent = android.content.Intent(android.content.Intent.ACTION_VIEW, uri)
-
-    val chooser = android.content.Intent.createChooser(intent, "Pay with...")
-
-    try {
-        context.startActivity(chooser)
-    } catch (e: android.content.ActivityNotFoundException) {
-        android.widget.Toast.makeText(context, "No UPI app found on this device.", android.widget.Toast.LENGTH_SHORT).show()
-    }
-}
-
-@Composable
-fun SupportDeveloperCard(modifier: Modifier = Modifier) {
-    val context = LocalContext.current
-    val myUpiId = "9909342367@ptaxis"
-    val myName = "Heet Soni"
-
-    Card(
-        modifier = modifier
-            .fillMaxWidth()
-            .padding(horizontal = 4.dp, vertical = 4.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.5f)
-        ),
-        shape = RoundedCornerShape(16.dp)
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-
-            Column(
-                modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(4.dp)
-            ) {
-                Text(
-                    text = "Support the Developer",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-                Text(
-                    text = "If you enjoy Openbeats, consider buying me a coffee!",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-
-            Spacer(modifier = Modifier.width(16.dp))
-
-            Button(
-                onClick = { launchUpiPayment(context, myUpiId, myName) },
-                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 0.dp),
-                shape = RoundedCornerShape(12.dp),
-                modifier = Modifier.height(36.dp)
-            ) {
-                Icon(
-                    painter = painterResource(id = android.R.drawable.ic_menu_send),
-                    contentDescription = "UPI",
-                    modifier = Modifier.size(16.dp)
-                )
-                Spacer(modifier = Modifier.width(6.dp))
-                Text(
-                    text = "UPI",
-                    style = MaterialTheme.typography.labelLarge
-                )
-            }
         }
     }
 }

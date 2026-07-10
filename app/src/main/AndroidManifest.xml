@@ -195,7 +195,7 @@
             android:theme="@style/Theme.OpenbeatsApp">
         </activity>
         <receiver
-            android:name=".ui.widget.VeluneWidgetReceiver"
+            android:name=".ui.widget.OpenbeatsWidgetReceiver"
             android:exported="true">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />

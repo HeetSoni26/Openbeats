@@ -67,8 +67,8 @@ import com.nikhil.yt.ui.screens.settings.AboutScreen
 import com.nikhil.yt.ui.screens.settings.AppearanceSettings
 import com.nikhil.yt.ui.screens.settings.CustomizeBackground
 import com.nikhil.yt.ui.screens.settings.BackupAndRestore
-import com.nikhil.yt.ui.screens.settings.VeluneSettingsScreen
-import com.nikhil.yt.ui.screens.settings.VeluneAccountSettingsScreen
+import com.nikhil.yt.ui.screens.settings.OpenbeatsSettingsScreen
+import com.nikhil.yt.ui.screens.settings.OpenbeatsAccountSettingsScreen
 import com.nikhil.yt.ui.screens.settings.ChangelogScreen
 import com.nikhil.yt.ui.screens.settings.ContentSettings
 import com.nikhil.yt.ui.screens.settings.DarkMode
@@ -300,10 +300,10 @@ fun NavGraphBuilder.navigationBuilder(
         YouTubeBrowseScreen(navController)
     }
     composable("settings") {
-        VeluneSettingsScreen(navController)
+        OpenbeatsSettingsScreen(navController)
     }
     composable("settings/account") {
-        VeluneAccountSettingsScreen(navController)
+        OpenbeatsAccountSettingsScreen(navController)
     }
     composable("settings/appearance") {
         AppearanceSettings(navController, scrollBehavior)

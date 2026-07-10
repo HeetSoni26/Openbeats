@@ -73,8 +73,8 @@ val widgetBgColorKey = intPreferencesKey("widget_bg_color")
 val widgetTextColorKey = intPreferencesKey("widget_text_color")
 
 
-class VeluneWidgetReceiver : GlanceAppWidgetReceiver() {
-    override val glanceAppWidget: GlanceAppWidget = VeluneWidget()
+class OpenbeatsWidgetReceiver : GlanceAppWidgetReceiver() {
+    override val glanceAppWidget: GlanceAppWidget = OpenbeatsWidget()
 
     override fun onReceive(context: Context, intent: Intent) {
         super.onReceive(context, intent)
@@ -103,7 +103,7 @@ class VeluneWidgetReceiver : GlanceAppWidgetReceiver() {
 }
 
 
-class VeluneWidget : GlanceAppWidget() {
+class OpenbeatsWidget : GlanceAppWidget() {
 
     override suspend fun provideGlance(context: Context, id: GlanceId) {
         provideContent {
@@ -118,14 +118,14 @@ class VeluneWidget : GlanceAppWidget() {
 
         val isPlaying = prefs[widgetIsPlayingKey] ?: false
         val currentSongTitle = prefs[widgetTitleKey] ?: "Not Playing"
-        val currentArtistName = prefs[widgetArtistKey] ?: "Velune"
+        val currentArtistName = prefs[widgetArtistKey] ?: "Openbeats"
 
         val artPath = prefs[widgetArtPathKey]
         val artBitmap = artPath?.let { BitmapFactory.decodeFile(it) }
         val imageProvider = if (artBitmap != null) {
             ImageProvider(artBitmap)
         } else {
-            ImageProvider(R.drawable.ic_velune_concept)
+            ImageProvider(R.drawable.music_note)
         }
 
         val defaultBg = android.graphics.Color.parseColor("#1E1E1E")
@@ -284,10 +284,10 @@ class VeluneWidget : GlanceAppWidget() {
 }
 
 
-fun updateVeluneWidgetState(context: Context, title: String, artist: String, isPlaying: Boolean, thumbnailUrl: String?) {
+fun updateOpenbeatsWidgetState(context: Context, title: String, artist: String, isPlaying: Boolean, thumbnailUrl: String?) {
     CoroutineScope(Dispatchers.IO).launch {
         val manager = GlanceAppWidgetManager(context)
-        val glanceIds = manager.getGlanceIds(VeluneWidget::class.java)
+        val glanceIds = manager.getGlanceIds(OpenbeatsWidget::class.java)
         if (glanceIds.isEmpty()) return@launch
 
         val state: Preferences = androidx.glance.appwidget.state.getAppWidgetState(
@@ -339,7 +339,7 @@ fun updateVeluneWidgetState(context: Context, title: String, artist: String, isP
                     prefs[widgetArtPathKey] = downloadedArtPath
                 }
             }
-            VeluneWidget().update(context, glanceId)
+            OpenbeatsWidget().update(context, glanceId)
         }
     }
 }

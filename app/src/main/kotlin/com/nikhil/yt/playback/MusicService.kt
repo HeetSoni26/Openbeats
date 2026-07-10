@@ -185,7 +185,7 @@ import com.nikhil.yt.utils.get
 import com.nikhil.yt.utils.getAsync
 import com.nikhil.yt.utils.getPresenceIntervalMillis
 import com.nikhil.yt.utils.reportException
-import com.nikhil.yt.ui.widget.updateVeluneWidgetState
+import com.nikhil.yt.ui.widget.updateOpenbeatsWidgetState
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -3768,7 +3768,7 @@ class MusicService :
             val currentPosition = player.currentPosition
             val isPlaying = player.isPlaying
 
-            updateVeluneWidgetState(
+            updateOpenbeatsWidgetState(
                 context = this@MusicService,
                 title = currentMetadata?.title ?: "Not Playing",
                 artist = currentMetadata?.artists?.joinToString(", ") { it.name } ?: "Velune",

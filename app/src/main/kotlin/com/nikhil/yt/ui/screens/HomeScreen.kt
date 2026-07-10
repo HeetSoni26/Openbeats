@@ -1,5 +1,5 @@
 /*
- * Velune - by Nikhil
+ * Openbeats - by Nikhil
  * Nikhil
  * Licensed Under GPL-3.0
  */
@@ -164,12 +164,12 @@ fun HomeScreen(
 
 
     // Openbeats glassmorphism palette
-    val glassCyan = com.nikhil.yt.ui.component.GlassPalette.Cyan
-    val glassViolet = com.nikhil.yt.ui.component.GlassPalette.Violet
-    val glassPink = com.nikhil.yt.ui.component.GlassPalette.Pink
-    val glassCyanDim = com.nikhil.yt.ui.component.GlassPalette.CyanDim
-    val glassVioletDim = com.nikhil.yt.ui.component.GlassPalette.VioletDim
-    val glassBase = com.nikhil.yt.ui.component.GlassPalette.BackgroundDeep
+    val glassCyan = remember { com.nikhil.yt.ui.component.GlassPalette.Cyan }
+    val glassViolet = remember { com.nikhil.yt.ui.component.GlassPalette.Violet }
+    val glassPink = remember { com.nikhil.yt.ui.component.GlassPalette.Pink }
+    val glassCyanDim = remember { com.nikhil.yt.ui.component.GlassPalette.CyanDim }
+    val glassVioletDim = remember { com.nikhil.yt.ui.component.GlassPalette.VioletDim }
+    val glassBase = remember { com.nikhil.yt.ui.component.GlassPalette.BackgroundDeep }
     
     Box(
         modifier = Modifier.fillMaxSize()
@@ -369,14 +369,14 @@ fun HomeScreen(
             )
 
             forgottenFavorites?.takeIf { it.isNotEmpty() }?.let { favorites ->
-                item {
+                item(key = "forgotten_favorites_title") {
                     NavigationTitle(
                         title = stringResource(R.string.forgotten_favorites),
                         modifier = Modifier.animateItem()
                     )
                 }
 
-                item {
+                item(key = "forgotten_favorites_section") {
                     ForgottenFavoritesSection(
                         forgottenFavorites = favorites,
                         mediaMetadata = mediaMetadata,

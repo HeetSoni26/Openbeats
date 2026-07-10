@@ -1,5 +1,5 @@
 /*
- * Velune - by Nikhil
+ * Openbeats - by Nikhil
  * Licensed Under GPL-3.0
  */
 
@@ -36,7 +36,7 @@ import com.nikhil.yt.constants.InnerTubeCookieKey
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun VeluneSettingsScreen(
+fun OpenbeatsSettingsScreen(
     navController: NavController,
 ) {
     val context = LocalContext.current
@@ -89,18 +89,19 @@ fun VeluneSettingsScreen(
                             .background(MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.5f)),
                         contentAlignment = Alignment.Center
                     ) {
-                        Image(
-                            painter = painterResource(id = R.drawable.ic_velune_concept),
-                            contentDescription = "Velune Logo",
+                        Icon(
+                            painter = painterResource(id = R.drawable.ic_launcher_icon),
+                            contentDescription = "Openbeats Logo",
                             modifier = Modifier
                                 .fillMaxSize()
-                                .padding(12.dp)
+                                .padding(12.dp),
+                            tint = Color.Unspecified
                         )
                     }
                     Spacer(Modifier.width(16.dp))
                     Column {
                         Text(
-                            text = "Velune",
+                            text = "Openbeats",
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Normal
                         )
