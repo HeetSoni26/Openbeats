@@ -38,8 +38,10 @@ import com.nikhil.yt.innertube.YouTube
 import com.nikhil.yt.innertube.models.YouTubeLocale
 import com.nikhil.yt.kugou.KuGou
 import com.nikhil.yt.lastfm.LastFM
+import com.nikhil.yt.db.MusicDatabase
 import com.nikhil.yt.ui.player.CanvasArtworkPlaybackCache
 import dagger.hilt.android.HiltAndroidApp
+import javax.inject.Inject
 import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.GlobalScope
@@ -60,11 +62,14 @@ import java.net.Proxy
 import java.util.*
 import java.util.concurrent.atomic.AtomicBoolean
 
+private const val VISITOR_DATA_MAX_AGE_MS = 14L * 24 * 60 * 60 * 1000
+
 @HiltAndroidApp
 class App : Application(), SingletonImageLoader.Factory {
     private val applicationScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     @Volatile private var isInitialized = false
     private val didRunImageCacheTrim = AtomicBoolean(false)
+    @Inject lateinit var database: MusicDatabase
 
     private fun currentProcessName(): String? {
         return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
@@ -119,6 +124,18 @@ class App : Application(), SingletonImageLoader.Factory {
     private fun initializeDeferredAsync() {
         applicationScope.launch(Dispatchers.IO) {
             try {
+                // Purge per-version stream state on every app update. Stream cache
+                // entries and format rows can be written by broken stream clients
+                // (truncated lengths, dead URLs) or arrive via a backup restore
+                // from an older build; neither is safe to keep across versions.
+                val lastVersionCode = dataStore.data.first()[LastAppVersionCodeKey] ?: -1
+                if (lastVersionCode != BuildConfig.VERSION_CODE) {
+                    filesDir.resolve("exoplayer").deleteRecursively()
+                    database.query { clearFormats() }
+                    dataStore.edit { it[LastAppVersionCodeKey] = BuildConfig.VERSION_CODE }
+                    Timber.i("Stream state purged for version change: %s -> %s", lastVersionCode, BuildConfig.VERSION_CODE)
+                }
+
                 val prefs = dataStore.data.first()
                 
                 prefs[ContentCountryKey]?.takeIf { it != SYSTEM_DEFAULT }?.let { country ->
@@ -173,16 +190,23 @@ class App : Application(), SingletonImageLoader.Factory {
 
         applicationScope.launch(Dispatchers.IO) {
             dataStore.data
-                .map { it[VisitorDataKey] }
+                .map { prefs ->
+                    val stored = prefs[VisitorDataKey]?.takeIf { it != "null" }
+                    val stampedAt = prefs[VisitorDataAtKey] ?: 0L
+                    // Visitor identities age out server-side, and a value restored
+                    // from an old backup can be long retired; re-mint when older
+                    // than the freshness window (missing stamp = unknown age).
+                    stored.takeIf { System.currentTimeMillis() - stampedAt <= VISITOR_DATA_MAX_AGE_MS }
+                }
                 .distinctUntilChanged()
                 .collect { visitorData ->
                     YouTube.visitorData = visitorData
-                        ?.takeIf { it != "null" }
                         ?: YouTube.visitorData().onFailure {
                             reportException(it)
                         }.getOrNull()?.also { newVisitorData ->
                             dataStore.edit { settings ->
                                 settings[VisitorDataKey] = newVisitorData
+                                settings[VisitorDataAtKey] = System.currentTimeMillis()
                             }
                         }
                 }

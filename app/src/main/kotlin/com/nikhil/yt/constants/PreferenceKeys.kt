@@ -457,6 +457,7 @@ enum class SearchSource {
 }
 
 val VisitorDataKey = stringPreferencesKey("visitorData")
+val VisitorDataAtKey = longPreferencesKey("visitorDataAt")
 val DataSyncIdKey = stringPreferencesKey("dataSyncId")
 val InnerTubeCookieKey = stringPreferencesKey("innerTubeCookie")
 val PoTokenKey = stringPreferencesKey("poToken")
@@ -465,6 +466,7 @@ val AccountEmailKey = stringPreferencesKey("accountEmail")
 val AccountChannelHandleKey = stringPreferencesKey("accountChannelHandle")
 val UseLoginForBrowse = booleanPreferencesKey("useLoginForBrowse")
 
+val LastAppVersionCodeKey = intPreferencesKey("lastAppVersionCode")
 val WebClientPoTokenEnabledKey = booleanPreferencesKey("webClientPoTokenEnabled")
 val AutoPoTokenEnabledKey = booleanPreferencesKey("autoPoTokenEnabled")
 val StreamClientProbeJsonKey = stringPreferencesKey("streamClientProbeJson")
