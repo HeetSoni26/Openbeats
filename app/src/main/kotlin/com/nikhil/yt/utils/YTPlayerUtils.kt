@@ -68,21 +68,27 @@ object YTPlayerUtils {
     private val MAIN_CLIENT: YouTubeClient = WEB_REMIX
     /**
      * Clients used for fallback streams in case the streams of the main client do not work.
+     *
+     * Ordered by real-world reliability (verified against the player endpoint):
+     * clients that still return directly playable stream URLs without a PO token
+     * come first; clients that are currently bot-gated, soft-blocked or return
+     * formats without usable URLs come last. Keep this order up to date as
+     * YouTube's client enforcement changes.
      */
     private val STREAM_FALLBACK_CLIENTS: Array<YouTubeClient> = arrayOf(
-        MOBILE,
-        ANDROID_MUSIC,
-        ANDROID_VR_NO_AUTH,
+        VISIONOS,
         IOS,
-        IOS_MUSIC,
-        TVHTML5_SIMPLY_EMBEDDED_PLAYER,
         ANDROID_VR_1_61_48,
+        ANDROID_VR_NO_AUTH,
         ANDROID_VR_1_43_32,
+        IOS_MUSIC,
+        ANDROID_MUSIC,
+        MOBILE,
+        IPADOS,
         ANDROID_CREATOR,
         ANDROID_TESTSUITE,
         ANDROID_UNPLUGGED,
-        IPADOS,
-        VISIONOS,
+        TVHTML5_SIMPLY_EMBEDDED_PLAYER,
         TVHTML5,
         WEB,
         WEB_CREATOR,
@@ -143,7 +149,8 @@ object YTPlayerUtils {
     )
     /**
      * Custom player response intended to use for playback.
-     * Metadata like audioConfig and videoDetails are from [MAIN_CLIENT].
+     * Metadata like audioConfig and videoDetails are from [MAIN_CLIENT] (or IOS when the
+     * main client is soft-blocked).
      * Format & stream can be from [MAIN_CLIENT] or [STREAM_FALLBACK_CLIENTS].
      */
     suspend fun playerResponseForPlayback(
@@ -193,8 +200,18 @@ object YTPlayerUtils {
         avoidCodecs: Set<String>,
     ): PlaybackData {
         Timber.tag(logTag).i("Fetching player response for videoId: $videoId, playlistId: $playlistId")
-        val signatureTimestamp = getSignatureTimestampOrNull(videoId)
-        Timber.tag(logTag).v("Signature timestamp: $signatureTimestamp")
+
+        // The signature timestamp requires NewPipe to download the YouTube watch page and
+        // player JS, which is slow. Only the WEB-family stream clients need it, so resolve
+        // it lazily instead of paying that cost on every song.
+        var signatureTimestamp: Int? = null
+        fun ensureSignatureTimestamp(): Int? {
+            if (signatureTimestamp == null) {
+                signatureTimestamp = getSignatureTimestampOrNull(videoId)
+                Timber.tag(logTag).v("Signature timestamp: $signatureTimestamp")
+            }
+            return signatureTimestamp
+        }
 
         val isLoggedIn = YouTube.cookie != null
         val sessionId = if (isLoggedIn) YouTube.dataSyncId else YouTube.visitorData
@@ -205,18 +222,15 @@ object YTPlayerUtils {
         var streamExpiresInSeconds: Int? = null
         var streamPlayerResponse: PlayerResponse? = null
 
-        val orderedFallbackClients =
-            (
-                    if (isLoggedIn) {
-                        STREAM_FALLBACK_CLIENTS.filter { it.loginSupported } + STREAM_FALLBACK_CLIENTS.filterNot { it.loginSupported }
-                    } else {
-                        STREAM_FALLBACK_CLIENTS.toList()
-                    }
-                    ).distinct()
+        // Keep the declared order even when logged in: the login-supported clients are
+        // currently the ones most aggressively bot-gated, so preferring them first would
+        // burn several doomed requests before reaching a client that actually streams.
+        // Login cookies are still sent for loginSupported clients when they are reached.
+        val orderedFallbackClients = STREAM_FALLBACK_CLIENTS.toList().distinct()
 
         val preferredYouTubeClient =
             when (preferredStreamClient) {
-                PlayerStreamClient.ANDROID_VR -> IOS // Aliased to IOS to bypass bot detection currently blocking VR clients
+                PlayerStreamClient.ANDROID_VR -> ANDROID_VR_1_61_48
                 PlayerStreamClient.WEB_REMIX -> WEB_REMIX
                 PlayerStreamClient.IOS -> IOS
                 PlayerStreamClient.MOBILE -> ANDROID_MUSIC
@@ -224,12 +238,25 @@ object YTPlayerUtils {
                 PlayerStreamClient.ANDROID_MUSIC -> ANDROID_MUSIC
             }
 
-        val metadataClient =
-            preferredYouTubeClient.takeIf { preferredStreamClient == PlayerStreamClient.ANDROID_VR } ?: MAIN_CLIENT
+        // WEB_REMIX metadata is the most complete (loudnessDb, premium formats), but it is
+        // soft-blocked without a valid PO token, so it is best-effort; IOS is the reliable
+        // no-auth fallback for metadata.
+        val metadataClient = MAIN_CLIENT
 
         Timber.tag(logTag).i("Fetching metadata response using client: ${metadataClient.clientName}")
-        val metadataPlayerResponse = runCatching {
-            YouTube.player(videoId, playlistId, metadataClient, signatureTimestamp).getOrThrow()}.getOrNull()
+        var metadataClientUsed = metadataClient
+        // Metadata does not require a signature timestamp; pass null to avoid the
+        // expensive NewPipe player-JS fetch unless a stream client needs it later.
+        val metadataPlayerResponse =
+            runCatching {
+                YouTube.player(videoId, playlistId, metadataClient, null).getOrThrow()
+            }.getOrNull() ?: run {
+                Timber.tag(logTag).w("Metadata from ${metadataClient.clientName} unavailable, falling back to IOS")
+                metadataClientUsed = IOS
+                runCatching {
+                    YouTube.player(videoId, playlistId, IOS, null).getOrThrow()
+                }.getOrNull()
+            }
         val audioConfig = metadataPlayerResponse?.playerConfig?.audioConfig
         val videoDetails = metadataPlayerResponse?.videoDetails
         val playbackTracking = metadataPlayerResponse?.playbackTracking
@@ -266,11 +293,14 @@ object YTPlayerUtils {
             }
 
             streamPlayerResponse =
-                if (client == metadataClient) {
+                if (client == metadataClientUsed && !client.useSignatureTimestamp) {
+                    // Metadata was fetched without a signature timestamp, so only reuse it
+                    // for clients that don't need one.
                     metadataPlayerResponse
                 } else {
                     Timber.tag(logTag).i("Fetching player response for fallback client: ${client.clientName}")
-                    YouTube.player(videoId, playlistId, client, signatureTimestamp).getOrNull()
+                    val ts = if (client.useSignatureTimestamp) ensureSignatureTimestamp() else null
+                    YouTube.player(videoId, playlistId, client, ts).getOrNull()
                 }
 
             if (streamPlayerResponse == null) continue
@@ -386,10 +416,13 @@ object YTPlayerUtils {
 
         Timber.tag(logTag).i("Successfully obtained playback data with format: ${format.mimeType}, bitrate: ${format.bitrate}")
 
+        // Drop expired entries so the cache cannot grow unbounded during a long session.
+        val now = System.currentTimeMillis()
+        streamUrlCache.values.removeIf { it.expiresAtMs <= now }
         streamUrlCache[buildCacheKey(videoId, format.itag)] =
             CachedStreamUrl(
                 url = streamUrl,
-                expiresAtMs = System.currentTimeMillis() + (streamExpiresInSeconds * 1000L),
+                expiresAtMs = now + (streamExpiresInSeconds * 1000L),
             )
 
         return PlaybackData(

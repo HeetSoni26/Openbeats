@@ -66,7 +66,6 @@ import com.nikhil.yt.innertube.pages.SearchResult
 import com.nikhil.yt.innertube.pages.SearchSuggestionPage
 import com.nikhil.yt.innertube.pages.SearchSummary
 import com.nikhil.yt.innertube.pages.SearchSummaryPage
-import com.nikhil.yt.innertube.utils.PoTokenGenerator
 import io.ktor.client.call.body
 import io.ktor.client.statement.bodyAsText
 
@@ -482,16 +481,10 @@ object YouTube {
         signatureTimestamp: Int? = null,
         poToken: String? = null
     ): Result<PlayerResponse> = runCatching {
-
-        var resolvedPoToken = authState.resolvePlayerPoToken(client, explicitPoToken = poToken)
-
-        if (resolvedPoToken == null && PlaybackAuthState.needsServiceIntegrity(client)) {
-              resolvedPoToken = com.nikhil.yt.innertube.utils.PoTokenGenerator.generateContentToken(
-                identifier = authState.visitorData ?: "dummy_visitor_data_for_token",
-                videoId = videoId
-            )
-            authState = authState.copy(poTokenPlayer = resolvedPoToken)
-        }
+        // Only send a PO token when a real (user-provided / BotGuard-generated) one is
+        // available. Fabricating a token here is worse than omitting it: YouTube treats
+        // unattested integrity tokens as a bot signal and soft-blocks the client.
+        val resolvedPoToken = authState.resolvePlayerPoToken(client, explicitPoToken = poToken)
 
         innerTube.player(client, videoId, playlistId, signatureTimestamp, resolvedPoToken).body<PlayerResponse>()
     }

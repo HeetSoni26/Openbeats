@@ -107,10 +107,10 @@ data class YouTubeClient(
 
         val IOS = YouTubeClient(
             clientName = "IOS",
-            clientVersion = "19.29.1",
+            clientVersion = "20.10.4",
             clientId = "5",
-            userAgent = "com.google.ios.youtube/19.29.1 (iPhone16,2; U; CPU iOS 17_5_1 like Mac OS X;)",
-            osVersion = "17.5.1.21F90",
+            userAgent = "com.google.ios.youtube/20.10.4 (iPhone16,2; U; CPU iOS 18_5_0 like Mac OS X;)",
+            osVersion = "18.5.0.22F76",
         )
 
         val MOBILE = YouTubeClient(
@@ -206,11 +206,11 @@ data class YouTubeClient(
 
         val IPADOS = YouTubeClient(
             clientName = "IOS",
-            clientVersion = "19.22.3",
+            clientVersion = "20.10.4",
             clientId = "5",
-            userAgent = "com.google.ios.youtube/19.22.3 (iPad7,6; U; CPU iPadOS 17_7_10 like Mac OS X; en-US)",
+            userAgent = "com.google.ios.youtube/20.10.4 (iPad7,6; U; CPU iPadOS 18_5_0 like Mac OS X; en-US)",
             osName = "iPadOS",
-            osVersion = "17.7.10.21H450",
+            osVersion = "18.5.0.22F76",
             deviceMake = "Apple",
             deviceModel = "iPad7,6",
             friendlyName = "iPadOS",

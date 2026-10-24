@@ -114,7 +114,8 @@ timber = { module = "com.jakewharton.timber:timber", version.ref = "timber" }
 
 #newpipe-extractor = { module = "com.github.teamnewpipe:NewPipeExtractor", version = "v0.25.0" }
 #newpie-extractor = { module = "com.github.libre-tube:NewPipeExtractor", version = "70be3a4" }
-newpipe-extractor = { module = "com.github.TeamNewPipe:NewPipeExtractor", version = "master-SNAPSHOT" }
+# Pinned to v0.26.5 (f9e6bb808f82) - master-SNAPSHOT is a moving target and can silently change playback behavior
+newpipe-extractor = { module = "com.github.TeamNewPipe:NewPipeExtractor", version = "f9e6bb808f82" }
 #newpipe-extractor = { module = "com.github.mostafaalagamy:MetrolistExtractor", version.ref = "extractor" }
 
 kuromoji-ipadic = { module = "com.atilika.kuromoji:kuromoji-ipadic", version.ref = "kuromojiIpadic" }

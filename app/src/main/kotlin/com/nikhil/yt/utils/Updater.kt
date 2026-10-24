@@ -88,7 +88,7 @@ object Updater {
         cachedEtag: String?,
     ): ReleasesNetworkResult {
         val response: HttpResponse =
-            client.get("https://api.github.com/repos/nikhilvishwakarma00/Velune/releases?per_page=$perPage") {
+            client.get("https://api.github.com/repos/HeetSoni26/Openbeats/releases?per_page=$perPage") {
                 headers {
                     append("Accept", "application/vnd.github+json")
                     append("User-Agent", "Velune")
@@ -140,10 +140,10 @@ object Updater {
             latest
         }
 
-    suspend fun getCommitHistory(count: Int = 20, branch: String = "dev"): Result<List<GitCommit>> =
+    suspend fun getCommitHistory(count: Int = 20, branch: String = "main"): Result<List<GitCommit>> =
         runCatching {
             val response =
-                client.get("https://api.github.com/repos/nikhilvishwakarma00/Velune/commits?sha=$branch&per_page=$count")
+                client.get("https://api.github.com/repos/HeetSoni26/Openbeats/commits?sha=$branch&per_page=$count")
                     .bodyAsText()
             val jsonArray = JSONArray(response)
             val commits = mutableListOf<GitCommit>()
@@ -165,10 +165,10 @@ object Updater {
         }
 
     fun getLatestDownloadUrl(): String {
-        val baseUrl = "https://github.com/nikhilvishwakarma00/Velune/releases/latest/download/"
+        val baseUrl = "https://github.com/HeetSoni26/Openbeats/releases/latest/download/"
         val architecture = BuildConfig.ARCHITECTURE
         return if (architecture == "universal") {
-            baseUrl + "Velune.apk"
+            baseUrl + "Openbeats.apk"
         } else {
             baseUrl + "app-${architecture}-release.apk"
         }
