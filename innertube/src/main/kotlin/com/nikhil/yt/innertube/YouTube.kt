@@ -119,6 +119,10 @@ object YouTube {
         get() = authState.poTokenPlayer
         set(value) { authState = authState.copy(poTokenPlayer = value) }
 
+    var webClientPoTokenEnabled: Boolean
+        get() = authState.webClientPoTokenEnabled
+        set(value) { authState = authState.copy(webClientPoTokenEnabled = value) }
+
     var proxy: Proxy?
         get() = innerTube.proxy
         set(value) {

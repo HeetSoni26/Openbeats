@@ -130,4 +130,17 @@ object StreamClientUtils {
         val separator = if (url.contains("?")) "&" else "?"
         return "$url${separator}pot=$poToken"
     }
+
+    /**
+     * Replace any existing `pot` parameter with the given token (or append when absent).
+     * Used so a freshly minted automatic token always wins over a manually extracted
+     * one that the NewPipe URL path may have already attached.
+     */
+    fun replacePoToken(url: String, poToken: String): String {
+        val stripped = url
+            .replace(Regex("([?&])pot=[^&]+&"), "$1")
+            .replace(Regex("([?&])pot=[^&]+"), "")
+        val separator = if (stripped.contains("?")) "&" else "?"
+        return "$stripped${separator}pot=$poToken"
+    }
 }

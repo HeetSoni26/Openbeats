@@ -730,7 +730,9 @@ object YTPlayerUtils {
         }
 
         webPoToken?.let {
-            url = StreamClientUtils.appendPoToken(url, it.streamingDataPoToken)
+            // Replace (not just append): NewPipe's URL path may have already attached a
+            // manually extracted pot, and the freshly minted automatic token must win.
+            url = StreamClientUtils.replacePoToken(url, it.streamingDataPoToken)
         }
 
         return url

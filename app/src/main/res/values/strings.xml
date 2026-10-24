@@ -772,7 +772,7 @@ Openbeats will only extract your token, and everything else is stored locally.</
     <string name="no_events_yet">Nothing yet — play a song and come back.</string>
     <string name="playback_diagnostics_hint">Tip: Settings → Playback diagnostics shows which stream clients YouTube is currently blocking or truncating, and lets you re-test them.</string>
     <string name="web_client_po_token">Web Client PO Token</string>
-    <string name="web_client_po_token_desc">Enable PO token generation for web-based player clients</string>
+    <string name="web_client_po_token_desc">Advanced fallback: use tokens you extracted manually when the automatic generator is unavailable. Fresh automatic tokens always take priority.</string>
     <string name="po_token_gvs">PO Token (GVS)</string>
     <string name="po_token_player">PO Token (Player)</string>
     <string name="visitor_data">Visitor Data</string>
