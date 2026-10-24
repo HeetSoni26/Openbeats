@@ -23,6 +23,8 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.nikhil.yt.MainActivity
 import com.nikhil.yt.R
+import com.nikhil.yt.constants.BACKUP_EXCLUDED_KEYS
+import com.nikhil.yt.constants.PurgeStreamStatePendingKey
 import com.nikhil.yt.db.InternalDatabase
 import com.nikhil.yt.db.MusicDatabase
 import com.nikhil.yt.db.entities.ArtistEntity
@@ -363,6 +365,11 @@ class BackupRestoreViewModel @Inject constructor(
 
                 try { context.filesDir.resolve(PERSISTENT_QUEUE_FILE).delete() } catch (_: Exception) {}
 
+                // The restored database carries stream records written by an older
+                // build; have the next launch purge derived stream state (format
+                // rows, stream cache) before playback can rely on them.
+                context.dataStore.edit { it[PurgeStreamStatePendingKey] = true }
+
                 _backupRestoreProgress.value = null
                 context.startActivity(Intent(context, MainActivity::class.java))
                 exitProcess(0)
@@ -386,6 +393,9 @@ class BackupRestoreViewModel @Inject constructor(
         serializer.startTag(null, "Settings")
 
         for ((key, value) in prefs) {
+            // Session/identity state is device-local; backing it up would let a
+            // later restore resurrect a retired visitor identity.
+            if (key.name in BACKUP_EXCLUDED_KEYS) continue
             val tagName = when (value) {
                 is Boolean -> "boolean"
                 is Int -> "int"
@@ -502,6 +512,15 @@ class BackupRestoreViewModel @Inject constructor(
         ) {
             return
         }
+
+        // Old backups legitimately carry session keys (they were not excluded
+        // before this filter existed); never apply them to this install.
+        booleans.keys.removeAll(BACKUP_EXCLUDED_KEYS)
+        ints.keys.removeAll(BACKUP_EXCLUDED_KEYS)
+        longs.keys.removeAll(BACKUP_EXCLUDED_KEYS)
+        floats.keys.removeAll(BACKUP_EXCLUDED_KEYS)
+        strings.keys.removeAll(BACKUP_EXCLUDED_KEYS)
+        stringSets.keys.removeAll(BACKUP_EXCLUDED_KEYS)
 
         context.dataStore.edit { prefs ->
             booleans.forEach { (k, v) -> prefs[booleanPreferencesKey(k)] = v }

@@ -124,19 +124,33 @@ class App : Application(), SingletonImageLoader.Factory {
     private fun initializeDeferredAsync() {
         applicationScope.launch(Dispatchers.IO) {
             try {
-                // Purge per-version stream state on every app update. Stream cache
-                // entries and format rows can be written by broken stream clients
-                // (truncated lengths, dead URLs) or arrive via a backup restore
-                // from an older build; neither is safe to keep across versions.
-                val lastVersionCode = dataStore.data.first()[LastAppVersionCodeKey] ?: -1
-                if (lastVersionCode != BuildConfig.VERSION_CODE) {
+                val prefs = dataStore.data.first()
+
+                // Purge derived stream state (stream cache + format rows) when the
+                // app version changes or right after a backup restore: stream
+                // records written by older or broken builds (truncated lengths,
+                // dead URLs) must never be served to the player. On a version
+                // change also drop the visitor identity so every update starts
+                // with a freshly minted one; it is silently re-fetched.
+                val versionChanged = (prefs[LastAppVersionCodeKey] ?: -1) != BuildConfig.VERSION_CODE
+                val purgePending = prefs[PurgeStreamStatePendingKey] == true
+                if (versionChanged || purgePending) {
                     filesDir.resolve("exoplayer").deleteRecursively()
                     database.query { clearFormats() }
-                    dataStore.edit { it[LastAppVersionCodeKey] = BuildConfig.VERSION_CODE }
-                    Timber.i("Stream state purged for version change: %s -> %s", lastVersionCode, BuildConfig.VERSION_CODE)
+                    dataStore.edit {
+                        it[LastAppVersionCodeKey] = BuildConfig.VERSION_CODE
+                        it.remove(PurgeStreamStatePendingKey)
+                        if (versionChanged) {
+                            it.remove(VisitorDataKey)
+                            it.remove(VisitorDataAtKey)
+                        }
+                    }
+                    Timber.i(
+                        "Stream state purged (versionChanged=%s, restorePending=%s)",
+                        versionChanged,
+                        purgePending,
+                    )
                 }
-
-                val prefs = dataStore.data.first()
                 
                 prefs[ContentCountryKey]?.takeIf { it != SYSTEM_DEFAULT }?.let { country ->
                     YouTube.locale = YouTube.locale.copy(gl = country)

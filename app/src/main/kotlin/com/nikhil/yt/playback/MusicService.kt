@@ -271,7 +271,9 @@ class MusicService :
     private val preferredStreamClient by enumPreference(
         this,
         PlayerStreamClientKey,
-        PlayerStreamClient.IOS
+        // ANDROID_VR probes clean end-to-end; IOS streams are truncated by
+        // YouTube after ~1MB, so it must not be the automatic first choice.
+        PlayerStreamClient.ANDROID_VR
     )
     private val playbackUrlCache = ConcurrentHashMap<String, Pair<String, Long>>()
     private val streamRecoveryState = ConcurrentHashMap<String, Pair<Int, Long>>()

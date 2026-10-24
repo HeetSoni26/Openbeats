@@ -467,6 +467,7 @@ val AccountChannelHandleKey = stringPreferencesKey("accountChannelHandle")
 val UseLoginForBrowse = booleanPreferencesKey("useLoginForBrowse")
 
 val LastAppVersionCodeKey = intPreferencesKey("lastAppVersionCode")
+val PurgeStreamStatePendingKey = booleanPreferencesKey("purgeStreamStatePending")
 val WebClientPoTokenEnabledKey = booleanPreferencesKey("webClientPoTokenEnabled")
 val AutoPoTokenEnabledKey = booleanPreferencesKey("autoPoTokenEnabled")
 val StreamClientProbeJsonKey = stringPreferencesKey("streamClientProbeJson")
@@ -585,3 +586,23 @@ enum class UpdateChannel {
     STABLE,
     NIGHTLY,
 }
+
+// Device-session state that must never travel inside a backup file and must
+// always be ignored when reading one. These are not user data: they are
+// identities and tokens minted for a specific install/session, and restoring
+// an old value reintroduces server-side enforcement against the app (the
+// "song loads then stops" failure). User content (playlists, songs, history,
+// settings) is unaffected by this list.
+// Declared after every key it references: top-level initializers run in
+// file order.
+val BACKUP_EXCLUDED_KEYS = setOf(
+    VisitorDataKey.name,
+    VisitorDataAtKey.name,
+    PoTokenKey.name,
+    PoTokenGvsKey.name,
+    PoTokenPlayerKey.name,
+    StreamClientProbeJsonKey.name,
+    StreamClientProbeAtKey.name,
+    LastAppVersionCodeKey.name,
+    PurgeStreamStatePendingKey.name,
+)
