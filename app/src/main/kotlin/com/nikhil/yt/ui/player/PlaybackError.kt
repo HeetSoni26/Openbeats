@@ -154,6 +154,12 @@ fun PlaybackError(
                 )
             }
 
+            Text(
+                text = stringResource(R.string.playback_diagnostics_hint),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onErrorContainer.copy(alpha = 0.85f),
+            )
+
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.End),

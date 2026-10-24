@@ -81,6 +81,7 @@ import com.nikhil.yt.ui.screens.settings.MusicTogetherScreen
 import com.nikhil.yt.ui.screens.settings.PalettePickerScreen
 import com.nikhil.yt.ui.screens.settings.PlayerSettings
 import com.nikhil.yt.ui.screens.settings.PoTokenScreen
+import com.nikhil.yt.ui.screens.settings.StreamHealthScreen
 import com.nikhil.yt.ui.screens.settings.PrivacySettings
 import com.nikhil.yt.ui.screens.settings.SettingsScreen
 import com.nikhil.yt.ui.screens.settings.StorageSettings
@@ -359,6 +360,9 @@ fun NavGraphBuilder.navigationBuilder(
     }
     composable("settings/po_token") {
         PoTokenScreen(navController, scrollBehavior)
+    }
+    composable("settings/stream_health") {
+        StreamHealthScreen(navController, scrollBehavior)
     }
     composable("customize_background") {
         CustomizeBackground(navController)

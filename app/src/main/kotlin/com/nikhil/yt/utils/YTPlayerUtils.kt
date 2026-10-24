@@ -33,6 +33,10 @@ import com.nikhil.yt.innertube.models.YouTubeClient.Companion.TVHTML5
 import com.nikhil.yt.innertube.models.YouTubeClient.Companion.VISIONOS
 import com.nikhil.yt.innertube.models.YouTubeClient.Companion.WEB
 import com.nikhil.yt.innertube.models.YouTubeClient.Companion.WEB_CREATOR
+import com.nikhil.yt.utils.potoken.WebPoTokenGenerator
+import com.nikhil.yt.utils.potoken.WebPoTokenResult
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okhttp3.OkHttpClient
 import timber.log.Timber
@@ -171,22 +175,47 @@ object YTPlayerUtils {
             }.distinct()
 
         var lastError: Throwable? = null
-        for (attempt in attempts) {
-            val attemptResult =
-                runCatching {
-                    playerResponseForPlaybackOnce(
-                        videoId = videoId,
-                        playlistId = playlistId,
-                        audioQuality = attempt,
-                        connectivityManager = connectivityManager,
-                        preferredStreamClient = preferredStreamClient,
-                        networkMetered = networkMetered,
-                        avoidCodecs = avoidCodecs,
-                    )
-                }
-            if (attemptResult.isSuccess) return@runCatching attemptResult.getOrThrow()
-            lastError = attemptResult.exceptionOrNull()
+        var visitorRotated = false
+
+        suspend fun runAttempts(): PlaybackData? {
+            var innerError: Throwable? = null
+            for (attempt in attempts) {
+                val attemptResult =
+                    runCatching {
+                        playerResponseForPlaybackOnce(
+                            videoId = videoId,
+                            playlistId = playlistId,
+                            audioQuality = attempt,
+                            connectivityManager = connectivityManager,
+                            preferredStreamClient = preferredStreamClient,
+                            networkMetered = networkMetered,
+                            avoidCodecs = avoidCodecs,
+                        )
+                    }
+                if (attemptResult.isSuccess) return attemptResult.getOrThrow()
+                innerError = attemptResult.exceptionOrNull()
+            }
+            lastError = innerError
+            return null
         }
+
+        var playbackData = runAttempts()
+
+        // When every client was bot-gated, rotate the visitor identity once (only for
+        // anonymous sessions) and retry: YouTube's bot-gating is partly per-session.
+        if (playbackData == null && !visitorRotated && YouTube.cookie == null &&
+            lastError is PlaybackException && isBotDetectionException(lastError as PlaybackException)
+        ) {
+            val newVisitor = YouTube.visitorData().getOrNull()
+            if (newVisitor != null && newVisitor != YouTube.visitorData) {
+                Timber.tag(logTag).w("All clients bot-gated; rotating visitor identity and retrying once")
+                YouTube.visitorData = newVisitor
+                visitorRotated = true
+                playbackData = runAttempts()
+            }
+        }
+
+        if (playbackData != null) return@runCatching playbackData
         throw lastError ?: IllegalStateException("Failed to resolve stream")
     }
 
@@ -273,6 +302,15 @@ object YTPlayerUtils {
                     Timber.tag(logTag).w("Temporarily blocked stream client for $videoId: ${client.clientName}")
                 }
                 blocked
+            }.let { list ->
+                // Self-healing order: keep the preferred client first, then sort the
+                // remaining fallbacks by their last probe result so clients that are
+                // currently truncated/bot-gated are not burned on every song.
+                if (StreamHealth.clientRanks.isEmpty()) {
+                    list
+                } else {
+                    listOfNotNull(list.firstOrNull()) + list.drop(1).sortedBy { StreamHealth.rankFor(it.clientName) }
+                }
             }
 
         val botDetectedClients = mutableSetOf<String>()
@@ -292,6 +330,17 @@ object YTPlayerUtils {
                 continue
             }
 
+            // WEB-family clients are soft-blocked/truncated without a real BotGuard PO
+            // token; generate one (fail-open) when automatic attestation is enabled.
+            var webPoToken: WebPoTokenResult? = null
+            if (StreamHealth.autoPoTokenEnabled && StreamClientUtils.isWebClient(client.clientName) && !sessionId.isNullOrBlank()) {
+                webPoToken = runCatching {
+                    WebPoTokenGenerator.getWebClientPoToken(videoId, sessionId!!)
+                }.onFailure {
+                    Timber.tag(logTag).w(it, "poToken generation failed for ${client.clientName}, continuing without")
+                }.getOrNull()
+            }
+
             streamPlayerResponse =
                 if (client == metadataClientUsed && !client.useSignatureTimestamp) {
                     // Metadata was fetched without a signature timestamp, so only reuse it
@@ -300,7 +349,7 @@ object YTPlayerUtils {
                 } else {
                     Timber.tag(logTag).i("Fetching player response for fallback client: ${client.clientName}")
                     val ts = if (client.useSignatureTimestamp) ensureSignatureTimestamp() else null
-                    YouTube.player(videoId, playlistId, client, ts).getOrNull()
+                    YouTube.player(videoId, playlistId, client, ts, webPoToken?.playerRequestPoToken).getOrNull()
                 }
 
             if (streamPlayerResponse == null) continue
@@ -310,6 +359,12 @@ object YTPlayerUtils {
                 val isBotDetection = isBotDetectionError(reason)
                 Timber.tag(logTag).w(
                     "Player response status not OK: ${streamPlayerResponse.playabilityStatus.status}, reason: $reason, botDetection: $isBotDetection"
+                )
+                StreamHealth.record(
+                    videoId,
+                    client.clientName,
+                    if (isBotDetection) "BOT_GATED" else "UNAVAILABLE",
+                    reason,
                 )
                 if (isBotDetection) {
                     botDetectedClients.add(client.clientName)
@@ -338,12 +393,38 @@ object YTPlayerUtils {
                 if (isLoggedIn && expectedDurationMs != null && isLikelyPreview(candidate, expectedDurationMs)) continue
                 val cacheKey = buildCacheKey(videoId, candidate.itag)
                 val cached = streamUrlCache[cacheKey]
-                val candidateUrl =
-                    if (cached != null && cached.expiresAtMs > System.currentTimeMillis()) {
-                        cached.url
+                var candidateUrl: String?
+                val fromCache: Boolean
+                if (cached != null && cached.expiresAtMs > System.currentTimeMillis()) {
+                    candidateUrl = cached.url
+                    fromCache = true
+                } else {
+                    candidateUrl = findUrlOrNull(candidate, videoId, client, webPoToken)
+                    fromCache = false
+                }
+                if (candidateUrl == null) continue
+
+                val failCode = validateStatus(candidateUrl, client.userAgent, candidate.contentLength)
+                if (failCode != null) {
+                    if (fromCache) {
+                        // the cached url may simply have been killed server-side; mint a
+                        // fresh one and validate that before condemning the client
+                        StreamHealth.record(videoId, client.clientName, "STALE_URL", "itag=${candidate.itag} http=$failCode")
+                        streamUrlCache.remove(cacheKey)
+                        candidateUrl = findUrlOrNull(candidate, videoId, client, webPoToken)
+                        if (candidateUrl == null) continue
+                        if (validateStatus(candidateUrl, client.userAgent, candidate.contentLength) != null) continue
                     } else {
-                        findUrlOrNull(candidate, videoId, client)
-                    } ?: continue
+                        StreamHealth.record(videoId, client.clientName, "VALIDATE_FAILED", "itag=${candidate.itag} http=$failCode")
+                        if (failCode == 403 || failCode == 429) {
+                            // server-side truncation/blocking of this client's streams;
+                            // skip it for a while instead of dying mid-song again
+                            markStreamClientFailed(videoId, client.clientName, failCode)
+                        }
+                        continue
+                    }
+                }
+
                 selectedFormat = candidate
                 selectedUrl = candidateUrl
                 break
@@ -362,18 +443,9 @@ object YTPlayerUtils {
 
             Timber.tag(logTag).i("Format found: ${format.mimeType}, bitrate: ${format.bitrate}")
             Timber.tag(logTag).v("Stream expires in: $streamExpiresInSeconds seconds")
-
-            val valid = validateStatus(streamUrl, client.userAgent)
-            if (valid) {
-                Timber.tag(logTag).i("Stream validated successfully with client: ${client.clientName}")
-                break
-            }
-
-            Timber.tag(logTag).w("Stream validation failed with client: ${client.clientName}, trying next fallback")
-            format = null
-            streamUrl = null
-            streamExpiresInSeconds = null
-            streamPlayerResponse = null
+            Timber.tag(logTag).i("Stream validated successfully with client: ${client.clientName}")
+            StreamHealth.record(videoId, client.clientName, "OK", "itag=${format.itag} bitrate=${format.bitrate}")
+            break
         }
 
         if (streamPlayerResponse == null) {
@@ -563,10 +635,14 @@ object YTPlayerUtils {
     }
     /**
      * Checks if the stream url returns a successful status.
-     * If this returns true the url is likely to work.
-     * If this returns false the url might cause an error during playback.
+     * Returns null when the url is likely to work, or the HTTP code of the first failing probe.
+     *
+     * Besides probing the start of the stream, a range near the end of the file is probed when
+     * the content length is known: YouTube sometimes serves unattested client streams truncated
+     * to the first ~1 MB and 403s everything beyond, which would otherwise only surface as
+     * playback stopping mid-song.
      */
-    private fun validateStatus(url: String, userAgent: String): Boolean {
+    private fun validateStatus(url: String, userAgent: String, contentLength: Long? = null): Int? {
         Timber.tag(logTag).v("Validating stream URL status")
         try {
             val httpUrl = url.toHttpUrlOrNull()
@@ -575,12 +651,19 @@ object YTPlayerUtils {
             val resolvedUserAgent = StreamClientUtils.resolveUserAgent(clientParam).ifEmpty { userAgent }
             val originReferer = StreamClientUtils.resolveOriginReferer(clientParam)
 
-            val probeRanges =
+            val probeRanges = buildList {
                 if (StreamClientUtils.isWebClient(clientParam)) {
-                    listOf("bytes=0-0", "bytes=262144-262145", "bytes=1048576-1048577")
+                    add("bytes=0-0")
+                    add("bytes=262144-262145")
+                    add("bytes=1048576-1048577")
                 } else {
-                    listOf("bytes=0-0")
+                    add("bytes=0-0")
                 }
+                contentLength?.takeIf { it > 4096L }?.let { cl ->
+                    val endOffset = cl - 1024L
+                    add("bytes=$endOffset-${endOffset + 1}")
+                }
+            }
 
             for (range in probeRanges) {
                 val rangeRequest =
@@ -595,16 +678,16 @@ object YTPlayerUtils {
                         .build()
 
                 val code = currentStreamClient().newCall(rangeRequest).execute().use { response -> response.code }
-                if (code == 403) return false
-                if (code !in 200..399 && code != 416) return false
+                if (code == 403) return 403
+                if (code !in 200..399 && code != 416) return code
             }
 
-            return true
+            return null
         } catch (e: Exception) {
             Timber.tag(logTag).e(e, "Stream URL validation failed with exception")
             reportException(e)
         }
-        return false
+        return -1
     }
     /**
      * Wrapper around the [NewPipeUtils.getSignatureTimestamp] function which reports exceptions
@@ -623,12 +706,14 @@ object YTPlayerUtils {
     }
     /**
      * Wrapper around the [NewPipeUtils.getStreamUrl] function which reports exceptions.
-     * Also patches cver to match the client version.
+     * Also patches cver to match the client version and appends the streaming PO token
+     * when a real (BotGuard-generated) one is available.
      */
     private fun findUrlOrNull(
         format: PlayerResponse.StreamingData.Format,
         videoId: String,
         client: YouTubeClient? = null,
+        webPoToken: WebPoTokenResult? = null,
     ): String? {
         Timber.tag(logTag).i("Finding stream URL for format: ${format.mimeType}, videoId: $videoId")
         var url = NewPipeUtils.getStreamUrl(format, videoId, client)
@@ -642,6 +727,10 @@ object YTPlayerUtils {
         // Patch cver in the URL to match the client we actually used
         if (client != null) {
             url = StreamClientUtils.patchClientVersion(url, client.clientVersion)
+        }
+
+        webPoToken?.let {
+            url = StreamClientUtils.appendPoToken(url, it.streamingDataPoToken)
         }
 
         return url
@@ -669,4 +758,89 @@ object YTPlayerUtils {
         }
         return false
     }
+
+    //region Self-healing client probe
+    /**
+     * Known-good music videos used to probe clients. Probing only needs ONE playable
+     * video; the list exists in case one of them becomes unavailable.
+     */
+    private val PROBE_VIDEO_IDS = arrayOf("JGwWNGJdvx8", "dQw4w9WgXcQ")
+
+    data class ClientProbeResult(
+        val clientName: String,
+        val clientVersion: String,
+        val health: StreamHealth.ClientHealth,
+        val elapsedMs: Long,
+    )
+
+    /**
+     * Runs every fallback client against a known-good video and reports whether it can
+     * still serve a complete (non-truncated) stream today. Results feed the dynamic
+     * fallback ordering and the Playback diagnostics screen.
+     */
+    suspend fun probeStreamClients(): List<ClientProbeResult> = withContext(Dispatchers.IO) {
+        val videoId = PROBE_VIDEO_IDS.firstOrNull { probeId ->
+            runCatching { YouTube.player(probeId, null, MAIN_CLIENT).getOrThrow() }.isSuccess
+        } ?: return@withContext emptyList()
+
+        val signatureTimestamp = getSignatureTimestampOrNull(videoId)
+
+        STREAM_FALLBACK_CLIENTS.map { client ->
+            val start = System.currentTimeMillis()
+            val health = runCatching { probeSingleClient(videoId, client, signatureTimestamp) }
+                .getOrElse { StreamHealth.ClientHealth.ERROR }
+            ClientProbeResult(client.clientName, client.clientVersion, health, System.currentTimeMillis() - start)
+        }.also { results ->
+            StreamHealth.updateRanksFromEntries(
+                results.map { StreamHealth.ClientHealthEntry(it.clientName, it.clientVersion, it.health, it.elapsedMs) }
+            )
+            results.forEach { StreamHealth.record(videoId, it.clientName, "PROBE_${it.health.name}", "took ${it.elapsedMs}ms") }
+        }
+    }
+
+    private suspend fun probeSingleClient(
+        videoId: String,
+        client: YouTubeClient,
+        signatureTimestamp: Int?,
+    ): StreamHealth.ClientHealth {
+        var webPoToken: WebPoTokenResult? = null
+        val sessionId = YouTube.dataSyncId ?: YouTube.visitorData
+        if (StreamHealth.autoPoTokenEnabled && StreamClientUtils.isWebClient(client.clientName) && !sessionId.isNullOrBlank()) {
+            webPoToken = runCatching { WebPoTokenGenerator.getWebClientPoToken(videoId, sessionId) }.getOrNull()
+        }
+
+        val response = YouTube.player(
+            videoId,
+            null,
+            client,
+            if (client.useSignatureTimestamp) signatureTimestamp else null,
+            webPoToken?.playerRequestPoToken,
+        ).getOrNull() ?: return StreamHealth.ClientHealth.ERROR
+
+        val playabilityStatus = response.playabilityStatus
+        if (playabilityStatus.status != "OK") {
+            return if (isBotDetectionError(playabilityStatus.reason.orEmpty())) {
+                StreamHealth.ClientHealth.BOT_GATED
+            } else {
+                StreamHealth.ClientHealth.UNAVAILABLE
+            }
+        }
+
+        val candidates = selectAudioFormatCandidates(
+            response,
+            AudioQuality.HIGH,
+            networkMetered = false,
+            avoidCodecs = emptySet(),
+        )
+        val format = candidates.firstOrNull() ?: return StreamHealth.ClientHealth.UNAVAILABLE
+        val url = findUrlOrNull(format, videoId, client, webPoToken) ?: return StreamHealth.ClientHealth.UNAVAILABLE
+
+        return if (validateStatus(url, client.userAgent, format.contentLength) == null) {
+            StreamHealth.ClientHealth.WORKING
+        } else {
+            // plays at first but the stream gets cut off partway through
+            StreamHealth.ClientHealth.TRUNCATED
+        }
+    }
+    //endregion
 }

@@ -3926,6 +3926,9 @@ class MusicService :
                 error.errorCode == PlaybackException.ERROR_CODE_IO_BAD_HTTP_STATUS ||
                     error.errorCode == PlaybackException.ERROR_CODE_IO_FILE_NOT_FOUND ||
                     error.errorCode == PlaybackException.ERROR_CODE_IO_READ_POSITION_OUT_OF_RANGE ||
+                    // youtube's gvs servers sometimes kill unattested streams mid-song with a
+                    // connection reset instead of a proper 403; refreshing the stream recovers
+                    error.errorCode == PlaybackException.ERROR_CODE_IO_UNSPECIFIED ||
                     httpStatusCode in setOf(403, 404, 410, 416, 429, 500, 502, 503)
                 )
 
@@ -4203,8 +4206,11 @@ class MusicService :
     private fun markAndCheckRecoveryAllowance(mediaId: String): Boolean {
         val now = System.currentTimeMillis()
         val (count, lastAt) = streamRecoveryState[mediaId] ?: (0 to 0L)
-        val nextCount = if (now - lastAt > 45_000L) 1 else count + 1
-        if (nextCount > 2) return false
+        // Mid-song stream kills (server 403s on a previously working url) are recovered by
+        // re-resolving from a different client; each attempt costs ~1s, so allow a handful
+        // of recoveries per song within a rolling window before giving up.
+        val nextCount = if (now - lastAt > 120_000L) 1 else count + 1
+        if (nextCount > 4) return false
         streamRecoveryState[mediaId] = nextCount to now
         return true
     }

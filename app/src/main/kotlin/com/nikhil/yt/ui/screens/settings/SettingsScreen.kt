@@ -414,6 +414,21 @@ fun SettingsScreen(
                         ),
                         onClick = { navController.navigate("settings/po_token") },
                     ),
+                    PremiumSettingsItem(
+                        icon = painterResource(R.drawable.info),
+                        title = stringResource(R.string.playback_diagnostics),
+                        subtitle = stringResource(R.string.stream_health_desc),
+                        accentColor = MaterialTheme.colorScheme.tertiary,
+                        keywords = listOf(
+                            "stream health",
+                            "diagnostics",
+                            "playback",
+                            "bot",
+                            "truncated",
+                            "clients",
+                        ),
+                        onClick = { navController.navigate("settings/stream_health") },
+                    ),
                 ),
             ),
         )

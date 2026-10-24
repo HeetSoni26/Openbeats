@@ -471,13 +471,9 @@ class MainActivity : ComponentActivity() {
                     notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
                 }
 
-                // Update checker disabled - IzzyOnDroid handles updates
-                // if (System.currentTimeMillis() - Updater.lastCheckTime > 1.days.inWholeMilliseconds) {
-                //     Updater.getLatestVersionName().onSuccess {
-                //         latestVersionName = it
-                //     }
-                // }
-                // com.nikhil.yt.utils.UpdateNotificationManager.checkForUpdates(this@MainActivity)
+                // Update check: self-throttled and only acts when the user enabled update
+                // notifications in settings; checks this repository's GitHub releases
+                com.nikhil.yt.utils.UpdateNotificationManager.checkForUpdates(this@MainActivity)
             }
 
             // Use remembered instances so the same state object is used everywhere

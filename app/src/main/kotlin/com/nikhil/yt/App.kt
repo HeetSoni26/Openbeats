@@ -30,6 +30,8 @@ import com.nikhil.yt.ui.theme.ThemeSeedPalette
 import com.nikhil.yt.ui.theme.ThemeSeedPaletteCodec
 import com.nikhil.yt.utils.dataStore
 import com.nikhil.yt.utils.PreferenceStore
+import com.nikhil.yt.utils.StreamHealth
+import com.nikhil.yt.utils.YTPlayerUtils
 import com.nikhil.yt.utils.get
 import com.nikhil.yt.utils.reportException
 import com.nikhil.yt.innertube.YouTube
@@ -267,6 +269,34 @@ class App : Application(), SingletonImageLoader.Factory {
                     LastFM.sessionKey = sessionKey
                 }
         }
+        applicationScope.launch(Dispatchers.IO) {
+            dataStore.data
+                .map { it[AutoPoTokenEnabledKey] }
+                .distinctUntilChanged()
+                .collect { enabled ->
+                    StreamHealth.autoPoTokenEnabled = enabled ?: true
+                }
+        }
+
+        // Restore the last client probe results so playback ordering benefits immediately,
+        // then re-probe in the background when they are older than 6 hours.
+        applicationScope.launch(Dispatchers.IO) {
+            val prefs = dataStore.data.first()
+            StreamHealth.ranksFromJson(prefs[StreamClientProbeJsonKey])
+            val lastProbeAt = prefs[StreamClientProbeAtKey] ?: 0L
+            if (System.currentTimeMillis() - lastProbeAt > PROBE_STALE_AFTER_MS) {
+                runCatching {
+                    YTPlayerUtils.probeStreamClients()
+                }.onSuccess { results ->
+                    if (results.isNotEmpty()) {
+                        dataStore.edit { settings ->
+                            settings[StreamClientProbeJsonKey] = StreamHealth.ranksToJson()
+                            settings[StreamClientProbeAtKey] = System.currentTimeMillis()
+                        }
+                    }
+                }
+            }
+        }
     }
 
     override fun newImageLoader(context: PlatformContext): ImageLoader {
@@ -314,6 +344,8 @@ class App : Application(), SingletonImageLoader.Factory {
     companion object {
         lateinit var instance: App
             private set
+
+        private const val PROBE_STALE_AFTER_MS = 6 * 60 * 60 * 1000L
 
         fun forgetAccount(context: Context) {
             CoroutineScope(Dispatchers.IO).launch {
