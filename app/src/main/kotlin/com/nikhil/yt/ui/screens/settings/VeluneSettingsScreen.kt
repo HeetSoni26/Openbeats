@@ -158,6 +158,22 @@ fun OpenbeatsSettingsScreen(
 
             item {
                 SettingsItemScreenshotStyle(
+                    icon = painterResource(R.drawable.info),
+                    title = "Playback diagnostics",
+                    onClick = { navController.navigate("settings/stream_health") }
+                )
+            }
+
+            item {
+                SettingsItemScreenshotStyle(
+                    icon = painterResource(R.drawable.token),
+                    title = "PO Token Generation",
+                    onClick = { navController.navigate("settings/po_token") }
+                )
+            }
+
+            item {
+                SettingsItemScreenshotStyle(
                     icon = painterResource(R.drawable.language),
                     title = "Content",
                     onClick = { navController.navigate("settings/content") }
