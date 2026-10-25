@@ -25,6 +25,7 @@ import com.nikhil.yt.MainActivity
 import com.nikhil.yt.R
 import com.nikhil.yt.constants.BACKUP_EXCLUDED_KEYS
 import com.nikhil.yt.constants.PurgeStreamStatePendingKey
+import com.nikhil.yt.constants.RestoredOfflineCacheKey
 import com.nikhil.yt.db.InternalDatabase
 import com.nikhil.yt.db.MusicDatabase
 import com.nikhil.yt.db.entities.ArtistEntity
@@ -36,6 +37,8 @@ import com.nikhil.yt.extensions.zipInputStream
 import com.nikhil.yt.extensions.zipOutputStream
 import com.nikhil.yt.playback.MusicService
 import com.nikhil.yt.playback.MusicService.Companion.PERSISTENT_QUEUE_FILE
+import com.nikhil.yt.playback.PlayerCacheDatabaseProvider
+import com.nikhil.yt.utils.BackupWriter
 import com.nikhil.yt.utils.dataStore
 import com.nikhil.yt.utils.reportException
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -165,37 +168,21 @@ class BackupRestoreViewModel @Inject constructor(
             )
     }
 
-    fun backup(context: Context, uri: Uri) {
+    fun backup(context: Context, uri: Uri, includeOfflineMusic: Boolean = false) {
         viewModelScope.launch(Dispatchers.IO) {
             val title = context.getString(R.string.backup_in_progress)
             try {
-                val dbFile = context.getDatabasePath(InternalDatabase.DB_NAME)
-                val dbFiles =
-                    listOf(
-                        dbFile,
-                        dbFile.resolveSibling("${InternalDatabase.DB_NAME}-wal"),
-                        dbFile.resolveSibling("${InternalDatabase.DB_NAME}-shm"),
-                        dbFile.resolveSibling("${InternalDatabase.DB_NAME}-journal"),
-                    ).filter { it.exists() }
-
-                val totalUnits = 2 + dbFiles.size
-                val unitSpan = 100f / totalUnits.coerceAtLeast(1)
-                var completedUnits = 0
-                var lastPercent = -1
                 var lastStep = ""
 
-                fun emit(step: String, unitFraction: Float = 0f, indeterminate: Boolean = false) {
-                    val p =
-                        ((completedUnits + unitFraction.coerceIn(0f, 1f)) * unitSpan)
-                            .roundToInt()
-                            .coerceIn(0, 100)
-                    if (p != lastPercent || step != lastStep) {
-                        lastPercent = p
+                fun emit(step: String, indeterminate: Boolean) {
+                    if (step != lastStep) {
                         lastStep = step
+                        // Fixed midpoint while the writer streams entries; the
+                        // final step jumps to 100 when the zip completes.
                         emitProgress(
                             title = title,
                             step = step,
-                            percent = p,
+                            percent = 50,
                             indeterminate = indeterminate,
                         )
                     }
@@ -203,45 +190,22 @@ class BackupRestoreViewModel @Inject constructor(
 
                 context.applicationContext.contentResolver.openOutputStream(uri)?.use { outputStream ->
                     outputStream.buffered().zipOutputStream().use { zipStream ->
-                        emit(context.getString(R.string.backup_step_export_settings), indeterminate = true)
-                        zipStream.putNextEntry(ZipEntry(SETTINGS_XML_FILENAME))
-                        writeSettingsToXml(context, zipStream)
-                        zipStream.closeEntry()
-                        completedUnits++
-
-                        emit(context.getString(R.string.backup_step_checkpoint_database), indeterminate = true)
-                        database.awaitIdle()
-                        database.checkpoint()
-                        completedUnits++
-
-                        val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
-                        dbFiles.forEach { file ->
-                            val fileSize = file.length().coerceAtLeast(1L)
-                            var bytesCopied = 0L
-                            emit(
-                                context.getString(R.string.backup_step_copying_file, file.name),
-                                unitFraction = 0f,
-                                indeterminate = false,
-                            )
-                            zipStream.putNextEntry(ZipEntry(file.name))
-                            FileInputStream(file).use { input ->
-                                while (true) {
-                                    val read = input.read(buffer)
-                                    if (read <= 0) break
-                                    zipStream.write(buffer, 0, read)
-                                    bytesCopied += read
-                                    emit(
-                                        context.getString(R.string.backup_step_copying_file, file.name),
-                                        unitFraction = bytesCopied.toFloat() / fileSize.toFloat(),
-                                        indeterminate = false,
-                                    )
-                                }
-                            }
-                            zipStream.closeEntry()
-                            completedUnits++
-                        }
+                        BackupWriter.writeBackup(
+                            context = context,
+                            database = database,
+                            zip = zipStream,
+                            includeOfflineMusic = includeOfflineMusic,
+                            emit = ::emit,
+                        )
                     }
                 } ?: throw IllegalStateException("Failed to open output stream")
+
+                emitProgress(
+                    title = title,
+                    step = context.getString(R.string.backup_step_checkpoint_database),
+                    percent = 100,
+                    indeterminate = false,
+                )
 
                 withContext(Dispatchers.Main) {
                     Toast.makeText(context, R.string.backup_create_success, Toast.LENGTH_SHORT).show()
@@ -290,12 +254,15 @@ class BackupRestoreViewModel @Inject constructor(
                             name == InternalDatabase.DB_NAME ||
                             name == "${InternalDatabase.DB_NAME}-wal" ||
                             name == "${InternalDatabase.DB_NAME}-shm" ||
-                            name == "${InternalDatabase.DB_NAME}-journal"
+                            name == "${InternalDatabase.DB_NAME}-journal" ||
+                            BackupWriter.isOfflineMusicEntry(name)
                     }
 
                 val totalUnits = 1 + 1 + restoreEntries.size
                 val unitSpan = 100f / totalUnits.coerceAtLeast(1)
                 var completedUnits = 0
+                var offlineRestorePrepared = false
+                var restoredOfflineMusic = false
 
                 fun emit(step: String, indeterminate: Boolean) {
                     val p = (completedUnits * unitSpan).roundToInt().coerceIn(0, 100)
@@ -345,6 +312,36 @@ class BackupRestoreViewModel @Inject constructor(
                                         zip.copyTo(out)
                                     }
                                 }
+                                else -> {
+                                    // Offline music payload: cached song audio and
+                                    // the stream-cache index database.
+                                    emit(context.getString(R.string.restore_step_restoring_file, name), indeterminate = true)
+                                    if (!offlineRestorePrepared) {
+                                        // Drop this install's cache before mixing in
+                                        // another install's cache files.
+                                        runCatching { context.filesDir.resolve("exoplayer").deleteRecursively() }
+                                        PlayerCacheDatabaseProvider.BACKUP_DB_ENTRIES.forEach { dbName ->
+                                            runCatching { context.getDatabasePath(dbName).delete() }
+                                        }
+                                        offlineRestorePrepared = true
+                                    }
+                                    if (name.startsWith(BackupWriter.OFFLINE_DIR_ENTRY_PREFIX)) {
+                                        val relative = name.removePrefix(BackupWriter.OFFLINE_DIR_ENTRY_PREFIX)
+                                        if (relative.isNotBlank() && !relative.contains("..")) {
+                                            val target = context.filesDir.resolve(relative)
+                                            target.parentFile?.mkdirs()
+                                            FileOutputStream(target).use { out ->
+                                                zip.copyTo(out)
+                                            }
+                                        }
+                                    } else {
+                                        val dbFile = context.getDatabasePath(name)
+                                        FileOutputStream(dbFile).use { out ->
+                                            zip.copyTo(out)
+                                        }
+                                    }
+                                    restoredOfflineMusic = true
+                                }
                             }
                             completedUnits++
                             entry = zip.nextEntry
@@ -367,8 +364,13 @@ class BackupRestoreViewModel @Inject constructor(
 
                 // The restored database carries stream records written by an older
                 // build; have the next launch purge derived stream state (format
-                // rows, stream cache) before playback can rely on them.
-                context.dataStore.edit { it[PurgeStreamStatePendingKey] = true }
+                // rows, stream cache) before playback can rely on them. When the
+                // backup included offline music, the restored cache files are
+                // kept and only derived records are purged.
+                context.dataStore.edit {
+                    it[PurgeStreamStatePendingKey] = true
+                    if (restoredOfflineMusic) it[RestoredOfflineCacheKey] = true
+                }
 
                 _backupRestoreProgress.value = null
                 context.startActivity(Intent(context, MainActivity::class.java))
@@ -384,48 +386,6 @@ class BackupRestoreViewModel @Inject constructor(
         }
     }
 
-    private suspend fun writeSettingsToXml(context: Context, outputStream: java.io.OutputStream) {
-        val prefs = context.dataStore.data.first().asMap()
-        val serializer = android.util.Xml.newSerializer()
-        serializer.setOutput(outputStream, "UTF-8")
-        serializer.startDocument("UTF-8", true)
-        serializer.startTag(null, "VeluneBackup")
-        serializer.startTag(null, "Settings")
-
-        for ((key, value) in prefs) {
-            // Session/identity state is device-local; backing it up would let a
-            // later restore resurrect a retired visitor identity.
-            if (key.name in BACKUP_EXCLUDED_KEYS) continue
-            val tagName = when (value) {
-                is Boolean -> "boolean"
-                is Int -> "int"
-                is Long -> "long"
-                is Float -> "float"
-                is String -> "string"
-                is Set<*> -> "string-set"
-                else -> null
-            }
-            if (tagName != null) {
-                serializer.startTag(null, tagName)
-                serializer.attribute(null, "name", key.name)
-                if (value is Set<*>) {
-                    value.forEach { item ->
-                        serializer.startTag(null, "item")
-                        serializer.text(item.toString())
-                        serializer.endTag(null, "item")
-                    }
-                } else {
-                    serializer.attribute(null, "value", value.toString())
-                }
-                serializer.endTag(null, tagName)
-            }
-        }
-
-        serializer.endTag(null, "Settings")
-        serializer.endTag(null, "VeluneBackup")
-        serializer.endDocument()
-        serializer.flush()
-    }
 
     private suspend fun restoreSettingsFromXml(context: Context, inputStream: java.io.InputStream) {
         val content = inputStream.readBytes().toString(Charsets.UTF_8)

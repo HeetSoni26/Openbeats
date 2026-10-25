@@ -30,6 +30,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
@@ -43,13 +44,20 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import android.content.Intent
+import android.net.Uri
+import android.widget.Toast
 import androidx.navigation.NavController
 import com.nikhil.yt.LocalPlayerAwareWindowInsets
 import com.nikhil.yt.R
+import com.nikhil.yt.BuildConfig
 import com.nikhil.yt.constants.AutoPoTokenEnabledKey
 import com.nikhil.yt.constants.StreamClientProbeAtKey
 import com.nikhil.yt.constants.StreamClientProbeJsonKey
@@ -57,6 +65,7 @@ import com.nikhil.yt.ui.component.IconButton
 import com.nikhil.yt.ui.component.PreferenceGroupTitle
 import com.nikhil.yt.ui.component.SwitchPreference
 import com.nikhil.yt.ui.utils.backToMain
+import com.nikhil.yt.utils.Diagnostics
 import com.nikhil.yt.utils.StreamHealth
 import com.nikhil.yt.utils.YTPlayerUtils
 import com.nikhil.yt.utils.dataStore
@@ -173,6 +182,67 @@ fun StreamHealthScreen(
                 Text(stringResource(R.string.probing_clients))
             } else {
                 Text(stringResource(R.string.test_all_clients))
+            }
+        }
+
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp),
+            horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(12.dp),
+        ) {
+            val clipboardManager = LocalClipboardManager.current
+            OutlinedButton(
+                onClick = {
+                    scope.launch {
+                        val report = Diagnostics.buildReport(context)
+                        clipboardManager.setText(AnnotatedString(report))
+                        Toast.makeText(context, R.string.report_copied, Toast.LENGTH_SHORT).show()
+                    }
+                },
+                modifier = Modifier.weight(1f),
+                shape = MaterialTheme.shapes.medium,
+            ) {
+                Text(
+                    stringResource(R.string.diagnostics_copy_report),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+            OutlinedButton(
+                onClick = {
+                    scope.launch {
+                        val report = Diagnostics.buildReport(context)
+                        clipboardManager.setText(AnnotatedString(report))
+                        val subject = "Openbeats report v" + BuildConfig.VERSION_NAME
+                        val body = "Describe what happened:\n\n\n" +
+                            "(The full diagnostic report was copied to your clipboard — " +
+                            "paste it below this line.)\n\n----- REPORT -----\n" +
+                            report.take(1500)
+                        val intent = Intent(Intent.ACTION_SENDTO).apply {
+                            data = Uri.parse(
+                                "mailto:" + Diagnostics.SUPPORT_EMAIL +
+                                    "?subject=" + Uri.encode(subject)
+                            )
+                            putExtra(Intent.EXTRA_EMAIL, arrayOf(Diagnostics.SUPPORT_EMAIL))
+                            putExtra(Intent.EXTRA_SUBJECT, subject)
+                            putExtra(Intent.EXTRA_TEXT, body)
+                        }
+                        runCatching {
+                            context.startActivity(Intent.createChooser(intent, null))
+                        }.onFailure {
+                            Toast.makeText(context, R.string.report_copied, Toast.LENGTH_LONG).show()
+                        }
+                    }
+                },
+                modifier = Modifier.weight(1f),
+                shape = MaterialTheme.shapes.medium,
+            ) {
+                Text(
+                    stringResource(R.string.diagnostics_email_report),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
             }
         }
 

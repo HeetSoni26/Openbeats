@@ -21,6 +21,7 @@ import androidx.media3.datasource.cache.SimpleCache
 import com.nikhil.yt.constants.MaxSongCacheSizeKey
 import com.nikhil.yt.db.InternalDatabase
 import com.nikhil.yt.db.MusicDatabase
+import com.nikhil.yt.playback.PlayerCacheDatabaseProvider
 import com.nikhil.yt.utils.dataStore
 import com.nikhil.yt.utils.get
 import dagger.Module
@@ -41,6 +42,10 @@ annotation class PlayerCache
 @Qualifier
 @Retention(AnnotationRetention.BINARY)
 annotation class DownloadCache
+
+@Qualifier
+@Retention(AnnotationRetention.BINARY)
+annotation class PlayerCacheDatabase
 
 private class LazyCache(
     private val create: () -> SimpleCache,
@@ -126,10 +131,17 @@ object AppModule {
 
     @Singleton
     @Provides
+    @PlayerCacheDatabase
+    fun providePlayerCacheDatabaseProvider(
+        @ApplicationContext context: Context,
+    ): DatabaseProvider = PlayerCacheDatabaseProvider(context)
+
+    @Singleton
+    @Provides
     @PlayerCache
     fun providePlayerCache(
         @ApplicationContext context: Context,
-        databaseProvider: DatabaseProvider,
+        @PlayerCacheDatabase databaseProvider: DatabaseProvider,
     ): Cache {
         val cacheSize = context.dataStore.get(MaxSongCacheSizeKey, 1024)
         val evictor = when (cacheSize) {

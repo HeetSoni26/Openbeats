@@ -468,6 +468,10 @@ val UseLoginForBrowse = booleanPreferencesKey("useLoginForBrowse")
 
 val LastAppVersionCodeKey = intPreferencesKey("lastAppVersionCode")
 val PurgeStreamStatePendingKey = booleanPreferencesKey("purgeStreamStatePending")
+val RestoredOfflineCacheKey = booleanPreferencesKey("restoredOfflineCache")
+val AutoBackupEnabledKey = booleanPreferencesKey("autoBackupEnabled")
+val AutoBackupFolderKey = stringPreferencesKey("autoBackupFolder")
+val LastAutoBackupAtKey = longPreferencesKey("lastAutoBackupAt")
 val WebClientPoTokenEnabledKey = booleanPreferencesKey("webClientPoTokenEnabled")
 val AutoPoTokenEnabledKey = booleanPreferencesKey("autoPoTokenEnabled")
 val StreamClientProbeJsonKey = stringPreferencesKey("streamClientProbeJson")
@@ -605,4 +609,7 @@ val BACKUP_EXCLUDED_KEYS = setOf(
     StreamClientProbeAtKey.name,
     LastAppVersionCodeKey.name,
     PurgeStreamStatePendingKey.name,
+    RestoredOfflineCacheKey.name,
+    AutoBackupFolderKey.name,
+    LastAutoBackupAtKey.name,
 )

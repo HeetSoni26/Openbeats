@@ -23,6 +23,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalClipboardManager
@@ -37,6 +38,8 @@ import androidx.media3.common.PlaybackException
 import androidx.media3.datasource.HttpDataSource
 import android.widget.Toast
 import com.nikhil.yt.R
+import com.nikhil.yt.utils.Diagnostics
+import kotlinx.coroutines.launch
 
 @Composable
 fun PlaybackError(
@@ -45,6 +48,7 @@ fun PlaybackError(
 ) {
     val clipboard = LocalClipboardManager.current
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     val fallbackUnknown = stringResource(R.string.error_unknown)
     val fallbackNoInternet = stringResource(R.string.error_no_internet)
     val fallbackTimeout = stringResource(R.string.error_timeout)
@@ -177,8 +181,18 @@ fun PlaybackError(
 
                 Button(
                     onClick = {
-                        clipboard.setText(AnnotatedString(details))
-                        Toast.makeText(context, copiedText, Toast.LENGTH_SHORT).show()
+                        scope.launch {
+                            // Error details plus the stream-health snapshot: a
+                            // single paste is enough to diagnose the failure.
+                            val report = runCatching { Diagnostics.buildReport(context) }
+                                .getOrNull().orEmpty()
+                            clipboard.setText(
+                                AnnotatedString(
+                                    if (report.isBlank()) details else details + "\n\n" + report
+                                )
+                            )
+                            Toast.makeText(context, copiedText, Toast.LENGTH_SHORT).show()
+                        }
                     },
                     colors =
                         ButtonDefaults.buttonColors(

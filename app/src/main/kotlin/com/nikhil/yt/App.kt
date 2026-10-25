@@ -28,6 +28,7 @@ import com.nikhil.yt.extensions.*
 import com.nikhil.yt.ui.screens.settings.ThemePalettes
 import com.nikhil.yt.ui.theme.ThemeSeedPalette
 import com.nikhil.yt.ui.theme.ThemeSeedPaletteCodec
+import com.nikhil.yt.utils.AutoBackupManager
 import com.nikhil.yt.utils.dataStore
 import com.nikhil.yt.utils.PreferenceStore
 import com.nikhil.yt.utils.StreamHealth
@@ -135,21 +136,38 @@ class App : Application(), SingletonImageLoader.Factory {
                 val versionChanged = (prefs[LastAppVersionCodeKey] ?: -1) != BuildConfig.VERSION_CODE
                 val purgePending = prefs[PurgeStreamStatePendingKey] == true
                 if (versionChanged || purgePending) {
-                    filesDir.resolve("exoplayer").deleteRecursively()
+                    // A restore that included offline music deliberately carries
+                    // stream cache files and their index; keep them, purge only
+                    // derived records. Everything else wipes the stream cache.
+                    val keepRestoredOfflineCache = purgePending &&
+                        prefs[RestoredOfflineCacheKey] == true && !versionChanged
+                    if (!keepRestoredOfflineCache) {
+                        filesDir.resolve("exoplayer").deleteRecursively()
+                    }
                     database.query { clearFormats() }
                     dataStore.edit {
                         it[LastAppVersionCodeKey] = BuildConfig.VERSION_CODE
                         it.remove(PurgeStreamStatePendingKey)
+                        it.remove(RestoredOfflineCacheKey)
                         if (versionChanged) {
                             it.remove(VisitorDataKey)
                             it.remove(VisitorDataAtKey)
                         }
                     }
                     Timber.i(
-                        "Stream state purged (versionChanged=%s, restorePending=%s)",
+                        "Stream state purged (versionChanged=%s, restorePending=%s, offlineKept=%s)",
                         versionChanged,
                         purgePending,
+                        keepRestoredOfflineCache,
                     )
+                }
+
+                // Keep the weekly auto-backup schedule in sync with settings; a
+                // fresh process re-asserts it so updates or kills never lose it.
+                if (prefs[AutoBackupEnabledKey] == true && !prefs[AutoBackupFolderKey].isNullOrBlank()) {
+                    AutoBackupManager.ensureScheduled(this@App)
+                } else {
+                    AutoBackupManager.cancel(this@App)
                 }
                 
                 prefs[ContentCountryKey]?.takeIf { it != SYSTEM_DEFAULT }?.let { country ->
