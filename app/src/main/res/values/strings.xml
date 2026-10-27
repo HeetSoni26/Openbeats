@@ -766,6 +766,8 @@ Openbeats will only extract your token, and everything else is stored locally.</
     <string name="report_copied">Report copied to clipboard</string>
     <string name="diagnostics_copy_report">Copy report</string>
     <string name="diagnostics_email_report">Email report</string>
+    <string name="reset_playback_engine">Reset playback engine</string>
+    <string name="playback_engine_reset">Playback engine reset — fresh identity, tokens and routes</string>
     <string name="playback_diagnostics">Playback diagnostics</string>
     <string name="stream_health_desc">Shows which stream clients YouTube currently accepts, so playback can route around blocked or truncated ones automatically. Run a test if songs stop in the middle.</string>
     <string name="test_all_clients">Test all clients now</string>

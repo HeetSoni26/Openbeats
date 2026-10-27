@@ -16,6 +16,7 @@ import android.app.ForegroundServiceStartNotAllowedException
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.widget.Toast
 import android.content.ServiceConnection
 import android.content.pm.PackageManager
 import android.os.Build
@@ -146,6 +147,7 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
+import com.nikhil.yt.utils.PlaybackEngineReset
 import com.nikhil.yt.utils.PreferenceStore
 import kotlinx.coroutines.withContext
 import com.nikhil.yt.constants.AppBarHeight
@@ -1156,6 +1158,27 @@ class MainActivity : ComponentActivity() {
                                                         Icon(
                                                             painter = painterResource(R.drawable.search),
                                                             contentDescription = stringResource(R.string.search)
+                                                        )
+                                                    }
+
+                                                    // One-tap full playback reset: fresh bans,
+                                                    // tokens and identity; re-prepares a stuck
+                                                    // song without leaving the screen.
+                                                    val resetScope = rememberCoroutineScope()
+                                                    IconButton(onClick = {
+                                                        resetScope.launch {
+                                                            PlaybackEngineReset.reset(this@MainActivity, playerConnection)
+                                                            Toast.makeText(
+                                                                this@MainActivity,
+                                                                R.string.playback_engine_reset,
+                                                                Toast.LENGTH_SHORT
+                                                            ).show()
+                                                        }
+                                                    }) {
+                                                        Icon(
+                                                            painter = painterResource(R.drawable.sync),
+                                                            contentDescription = "Reset playback engine",
+                                                            modifier = Modifier.size(24.dp)
                                                         )
                                                     }
 

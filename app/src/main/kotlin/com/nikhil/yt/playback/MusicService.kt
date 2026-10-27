@@ -177,6 +177,7 @@ import com.nikhil.yt.utils.CoilBitmapLoader
 import com.nikhil.yt.utils.DiscordRPC
 import com.nikhil.yt.utils.NetworkConnectivityObserver
 import com.nikhil.yt.utils.StreamClientUtils
+import com.nikhil.yt.utils.potoken.WebPoTokenGenerator
 import com.nikhil.yt.utils.SyncUtils
 import com.nikhil.yt.utils.YTPlayerUtils
 import com.nikhil.yt.utils.dataStore
@@ -3963,6 +3964,12 @@ class MusicService :
             )
             YTPlayerUtils.markStreamClientFailed(currentMediaId, failingStreamClientKey, httpStatusCode)
             YTPlayerUtils.markPreferredClientFailed(currentMediaId, preferredStreamClient, httpStatusCode)
+            // A killed WEB-family stream usually means the token/session was
+            // rejected: rebuild the BotGuard session so the retry carries a
+            // brand-new token instead of a possibly poisoned one.
+            if (failingStreamClientKey != null && StreamClientUtils.isWebClient(failingStreamClientKey)) {
+                runCatching { WebPoTokenGenerator.resetSession() }
+            }
             YTPlayerUtils.invalidateCachedStreamUrls(currentMediaId)
             playbackUrlCache.remove(currentMediaId)
             pendingStreamRefreshValidationMediaId = currentMediaId

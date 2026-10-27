@@ -63,6 +63,31 @@ object WebPoTokenGenerator {
     }
 
     /**
+     * Manually drops the current BotGuard session so the next token mint runs
+     * on a brand-new WebView. Also clears the "broken WebView" flag, giving a
+     * device whose WebView was updated a second chance. Never throws.
+     */
+    fun resetSession() {
+        if (!webViewSupported) return
+        try {
+            runBlocking {
+                webPoTokenGenLock.withLock {
+                    withContext(Dispatchers.Main) {
+                        webPoTokenGenerator?.close()
+                    }
+                    webPoTokenGenerator = null
+                    webPoTokenSessionId = null
+                    webPoTokenStreamingPot = null
+                }
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "poToken session reset failed: ${e.message}")
+        } finally {
+            webViewBadImpl = false
+        }
+    }
+
+    /**
      * @param forceRecreate whether to force the recreation of [webPoTokenGenerator], to be used in
      * case the current [webPoTokenGenerator] threw an error last time
      * [PoTokenWebView.generatePoToken] was called

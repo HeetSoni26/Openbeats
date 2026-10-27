@@ -56,6 +56,7 @@ import android.net.Uri
 import android.widget.Toast
 import androidx.navigation.NavController
 import com.nikhil.yt.LocalPlayerAwareWindowInsets
+import com.nikhil.yt.LocalPlayerConnection
 import com.nikhil.yt.R
 import com.nikhil.yt.BuildConfig
 import com.nikhil.yt.constants.AutoPoTokenEnabledKey
@@ -66,6 +67,7 @@ import com.nikhil.yt.ui.component.PreferenceGroupTitle
 import com.nikhil.yt.ui.component.SwitchPreference
 import com.nikhil.yt.ui.utils.backToMain
 import com.nikhil.yt.utils.Diagnostics
+import com.nikhil.yt.utils.PlaybackEngineReset
 import com.nikhil.yt.utils.StreamHealth
 import com.nikhil.yt.utils.YTPlayerUtils
 import com.nikhil.yt.utils.dataStore
@@ -244,6 +246,22 @@ fun StreamHealthScreen(
                     overflow = TextOverflow.Ellipsis,
                 )
             }
+        }
+
+        val playerConnection = LocalPlayerConnection.current
+        OutlinedButton(
+            onClick = {
+                scope.launch {
+                    PlaybackEngineReset.reset(context, playerConnection)
+                    Toast.makeText(context, R.string.playback_engine_reset, Toast.LENGTH_SHORT).show()
+                }
+            },
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 4.dp),
+            shape = MaterialTheme.shapes.medium,
+        ) {
+            Text(stringResource(R.string.reset_playback_engine))
         }
 
         if (probeResults.isNotEmpty()) {

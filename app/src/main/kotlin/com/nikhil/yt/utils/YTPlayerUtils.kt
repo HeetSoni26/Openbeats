@@ -122,6 +122,19 @@ object YTPlayerUtils {
         streamUrlCache.keys.removeIf { it.startsWith(prefix) }
     }
 
+    /**
+     * Full in-memory reset of the playback engine: clears client bans, failure
+     * trackers and cached stream URLs. Used by the user-facing "reset playback
+     * engine" action; everything is re-learned from scratch on the next play.
+     */
+    fun resetPlaybackState() {
+        failedStreamClientsUntil.clear()
+        globalFailedClientsUntil.clear()
+        clientFailedVideos.clear()
+        streamUrlCache.clear()
+        StreamHealth.record("reset", "ENGINE", "RESET", "playback engine reset requested")
+    }
+
     fun markStreamClientFailed(videoId: String, clientKey: String?, httpStatusCode: Int?) {
         if (httpStatusCode != 403 && httpStatusCode != 429) return
         val normalizedClientKey = normalizeStreamClientKey(clientKey)
