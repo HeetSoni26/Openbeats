@@ -62,6 +62,23 @@ object Diagnostics {
         }
         sb.appendLine()
 
+        sb.appendLine("[Temporarily banned stream clients]")
+        runCatching {
+            val bans = YTPlayerUtils.activeGlobalClientBans()
+            if (bans.isEmpty()) {
+                sb.appendLine("None")
+            } else {
+                bans.forEach { (client, remainingMs) ->
+                    sb.appendLine("$client: ${remainingMs / 60000}m remaining")
+                }
+            }
+            val perVideo = YTPlayerUtils.activePerVideoBanCount()
+            if (perVideo > 0) sb.appendLine("per-video bans active: $perVideo")
+        }.onFailure {
+            sb.appendLine("unavailable: ${it.message}")
+        }
+        sb.appendLine()
+
         sb.appendLine("[Playback settings]")
         runCatching {
             val prefs = context.dataStore.data.first()

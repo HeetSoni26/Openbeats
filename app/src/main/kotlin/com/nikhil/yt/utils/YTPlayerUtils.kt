@@ -45,7 +45,10 @@ import java.util.concurrent.ConcurrentHashMap
 
 object YTPlayerUtils {
     private const val logTag = "YTPlayerUtils"
-    private const val FAILED_CLIENT_BACKOFF_MS = 10 * 60 * 1000L
+    private const val GLOBAL_FAILED_BACKOFF_MS = 10 * 60 * 1000L
+    private const val PER_VIDEO_FAILED_BACKOFF_MS = 90 * 1000L
+    private const val ESCALATION_WINDOW_MS = 10 * 60 * 1000L
+    private const val ESCALATION_VIDEO_THRESHOLD = 3
 
     @Volatile private var streamClientPair: Pair<java.net.Proxy?, OkHttpClient>? = null
 
@@ -104,7 +107,15 @@ object YTPlayerUtils {
     )
 
     private val streamUrlCache = ConcurrentHashMap<String, CachedStreamUrl>()
+
+    /** Per-video 403/429 backoff: key is "videoId:CLIENT". Short window. */
     private val failedStreamClientsUntil = ConcurrentHashMap<String, Long>()
+
+    /** Escalated global bans: key is "CLIENT". Only after repeated cross-video failures. */
+    private val globalFailedClientsUntil = ConcurrentHashMap<String, Long>()
+
+    /** client -> {videoId -> last failure time}, for escalation tracking. */
+    private val clientFailedVideos = ConcurrentHashMap<String, ConcurrentHashMap<String, Long>>()
 
     fun invalidateCachedStreamUrls(videoId: String) {
         val prefix = "$videoId:"
@@ -115,25 +126,70 @@ object YTPlayerUtils {
         if (httpStatusCode != 403 && httpStatusCode != 429) return
         val normalizedClientKey = normalizeStreamClientKey(clientKey)
         if (normalizedClientKey.isEmpty()) return
-        failedStreamClientsUntil[normalizedClientKey] =
-            System.currentTimeMillis() + FAILED_CLIENT_BACKOFF_MS
+
+        val now = System.currentTimeMillis()
+        // First offenses only poison THIS video: a single transient 403 on the
+        // one healthy client must not break every other song for 10 minutes.
+        failedStreamClientsUntil[buildFailedClientKey(videoId, normalizedClientKey)] =
+            now + PER_VIDEO_FAILED_BACKOFF_MS
+
+        // Escalate to a global ban only when the client fails on several distinct
+        // videos in a row — the signature of a genuinely broken client (e.g. the
+        // truncated IOS streams) rather than a one-off network hiccup.
+        val videos = clientFailedVideos.getOrPut(normalizedClientKey) { ConcurrentHashMap() }
+        videos[normalizeStreamClientKey(videoId)] = now
+        videos.values.removeIf { it < now - ESCALATION_WINDOW_MS }
+        if (videos.size >= ESCALATION_VIDEO_THRESHOLD) {
+            globalFailedClientsUntil[normalizedClientKey] = now + GLOBAL_FAILED_BACKOFF_MS
+        }
     }
 
     private fun isStreamClientTemporarilyBlocked(videoId: String, clientKey: String?): Boolean {
         val normalizedClientKey = normalizeStreamClientKey(clientKey)
         if (normalizedClientKey.isEmpty()) return false
+        val now = System.currentTimeMillis()
 
-        val until = failedStreamClientsUntil[normalizedClientKey] ?: return false
-        if (until <= System.currentTimeMillis()) {
-            failedStreamClientsUntil.remove(normalizedClientKey)
-            return false
+        globalFailedClientsUntil[normalizedClientKey]?.let { until ->
+            if (until <= now) globalFailedClientsUntil.remove(normalizedClientKey) else return true
         }
-        return true
+        failedStreamClientsUntil[buildFailedClientKey(videoId, normalizedClientKey)]?.let { until ->
+            if (until <= now) {
+                failedStreamClientsUntil.remove(buildFailedClientKey(videoId, normalizedClientKey))
+            } else {
+                return true
+            }
+        }
+        return false
     }
 
 
+    /** Global bans still active (client -> remaining ms), for diagnostics reports. */
+    fun activeGlobalClientBans(): Map<String, Long> {
+        val now = System.currentTimeMillis()
+        val active = globalFailedClientsUntil.mapValues { it.value - now }.filterValues { it > 0 }
+        globalFailedClientsUntil.values.removeIf { it <= now }
+        return active
+    }
+
+    /** Count of per-video bans currently active, for diagnostics reports. */
+    fun activePerVideoBanCount(): Int {
+        val now = System.currentTimeMillis()
+        failedStreamClientsUntil.values.removeIf { it <= now }
+        return failedStreamClientsUntil.size
+    }
+
     fun markPreferredClientFailed(videoId: String, client: PlayerStreamClient, httpStatusCode: Int?) {
-        markStreamClientFailed(videoId, client.name, httpStatusCode)
+        // Map the user-facing preference to the concrete client the walk uses,
+        // otherwise the ban lands on a key no client matches.
+        val actualClient = when (client) {
+            PlayerStreamClient.ANDROID_VR -> ANDROID_VR_1_61_48
+            PlayerStreamClient.WEB_REMIX -> WEB_REMIX
+            PlayerStreamClient.IOS -> IOS
+            PlayerStreamClient.MOBILE -> ANDROID_MUSIC
+            PlayerStreamClient.TVHTML5 -> TVHTML5_SIMPLY_EMBEDDED_PLAYER
+            PlayerStreamClient.ANDROID_MUSIC -> ANDROID_MUSIC
+        }
+        markStreamClientFailed(videoId, actualClient.clientName, httpStatusCode)
     }
     private fun normalizeStreamClientKey(clientKey: String?): String {
         return clientKey?.trim()?.takeIf { it.isNotBlank() }?.uppercase(Locale.US).orEmpty()
@@ -303,13 +359,20 @@ object YTPlayerUtils {
                 }
                 blocked
             }.let { list ->
-                // Self-healing order: keep the preferred client first, then sort the
-                // remaining fallbacks by their last probe result so clients that are
-                // currently truncated/bot-gated are not burned on every song.
+                // Self-healing order: the preferred client leads only while the
+                // last probe considers it healthy; otherwise it is sorted with
+                // everything else so a dead preference cannot burn the first
+                // attempt of every song.
                 if (StreamHealth.clientRanks.isEmpty()) {
                     list
                 } else {
-                    listOfNotNull(list.firstOrNull()) + list.drop(1).sortedBy { StreamHealth.rankFor(it.clientName) }
+                    val preferred = list.firstOrNull()
+                    val rest = list.drop(1)
+                    if (preferred != null && StreamHealth.rankFor(preferred.clientName) == 0) {
+                        listOf(preferred) + rest.sortedBy { StreamHealth.rankFor(it.clientName) }
+                    } else {
+                        list.sortedBy { StreamHealth.rankFor(it.clientName) }
+                    }
                 }
             }
 
@@ -352,7 +415,12 @@ object YTPlayerUtils {
                     YouTube.player(videoId, playlistId, client, ts, webPoToken?.playerRequestPoToken).getOrNull()
                 }
 
-            if (streamPlayerResponse == null) continue
+            if (streamPlayerResponse == null) {
+                // Request/parse failure: record it so diagnostics reports show
+                // why this client contributed nothing to the walk.
+                StreamHealth.record(videoId, client.clientName, "REQUEST_FAILED", "no player response")
+                continue
+            }
 
             if (streamPlayerResponse.playabilityStatus.status != "OK") {
                 val reason = streamPlayerResponse.playabilityStatus.reason.orEmpty()
@@ -369,8 +437,10 @@ object YTPlayerUtils {
                 if (isBotDetection) {
                     botDetectedClients.add(client.clientName)
 
-                    failedStreamClientsUntil[normalizeStreamClientKey(client.clientName)] =
-                        System.currentTimeMillis() + FAILED_CLIENT_BACKOFF_MS
+                    // Bot gating is identity/device level, not video specific:
+                    // a global backoff is appropriate here.
+                    globalFailedClientsUntil[normalizeStreamClientKey(client.clientName)] =
+                        System.currentTimeMillis() + GLOBAL_FAILED_BACKOFF_MS
                 }
                 continue
             }
@@ -384,7 +454,10 @@ object YTPlayerUtils {
                     avoidCodecs = avoidCodecs,
                 )
 
-            if (candidates.isEmpty()) continue
+            if (candidates.isEmpty()) {
+                StreamHealth.record(videoId, client.clientName, "NO_CANDIDATES", "quality=$audioQuality")
+                continue
+            }
 
             var selectedFormat: PlayerResponse.StreamingData.Format? = null
             var selectedUrl: String? = null
@@ -430,7 +503,15 @@ object YTPlayerUtils {
                 break
             }
 
-            if (selectedFormat == null || selectedUrl == null) continue
+            if (selectedFormat == null || selectedUrl == null) {
+                StreamHealth.record(
+                    videoId,
+                    client.clientName,
+                    "NO_URL",
+                    "all ${candidates.size} candidate(s) failed",
+                )
+                continue
+            }
 
             format = selectedFormat
             streamUrl = selectedUrl
