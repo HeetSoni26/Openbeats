@@ -67,6 +67,23 @@ Experience lyrics like never before:
 - Background Playback
 - Sleep Timer
 
+### Reliability & Self-Healing Playback
+
+Songs keep playing even when YouTube tightens enforcement:
+
+- **Self-healing client chain** — the app probes which stream clients YouTube currently accepts and reorders the fallback chain automatically
+- **Real BotGuard PO tokens** — generated in-app through a private WebView, keeping web clients unblocked
+- **Mid-song recovery** — a killed stream is re-minted and playback resumes instead of stopping
+- **Graduated client bans** — a single hiccup only affects that song, never the whole app
+- **One-tap engine reset** — the sync button beside search gives you a fresh identity, fresh tokens and fresh routes without reopening the app
+- **Playback diagnostics** — see exactly which clients are healthy, truncated or bot-gated, and email a full report to the developer
+
+### Backup & Your Data
+
+- **Backups that include offline music** — songs you listened to travel inside the backup and play offline immediately after a restore
+- **Weekly auto-backup** to a folder you pick once, keeping the newest 3
+- **Safe restore** — device-session state is sanitized on the way in, so an old backup can never break a new install
+
 ### Audio Engine
 
 - Gapless Playback
@@ -84,6 +101,19 @@ Experience lyrics like never before:
 - Discord Rich Presence
 - Personalized Home Feed
 - Year in Review Stats
+
+---
+
+## Recent Updates
+
+| Version | Highlights |
+|---------|------------|
+| **v1.4.1** | Reset button beside search (fresh identity + tokens in one tap), automatic token rotation after web-client kills |
+| **v1.4.0** | Fixed the root cause of songs load-then-stop: one transient 403 no longer bans the healthy client for 10 minutes |
+| **v1.3.x** | Backups can carry offline music, weekly auto-backup, email diagnostics reports |
+| **v1.2.x** | Self-healing playback stack: real PO tokens, client probing, safe backup restores |
+
+Full notes: [Releases](https://github.com/HeetSoni26/Openbeats/releases)
 
 ---
 
@@ -147,8 +177,11 @@ Open in Android Studio -> Sync -> Run
 
 ---
 
-## Community
+## Community & Support
 
+Found a bug or a song that stops? The fastest way to reach the developer:
+
+- **Email:** [heetks2607@gmail.com](mailto:heetks2607@gmail.com) — in the app: **Settings → Playback diagnostics → Email report** sends a full diagnostic report automatically
 - **GitHub Issues:** [Report a Bug or Request a Feature](https://github.com/HeetSoni26/Openbeats/issues)
 - **GitHub Discussions:** [Open a Discussion](https://github.com/HeetSoni26/Openbeats/discussions)
 
