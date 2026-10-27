@@ -240,7 +240,8 @@ class BackupRestoreViewModel @Inject constructor(
                         var entry = zip.nextEntry
                         while (entry != null) {
                             entryNames.add(entry.name)
-                            if (entry.name == InternalDatabase.DB_NAME) hasDb = true
+                            // Tolerate backups whose entries sit inside a folder.
+                            if (entry.name.substringAfterLast('/') == InternalDatabase.DB_NAME) hasDb = true
                             entry = zip.nextEntry
                         }
                     }
@@ -249,12 +250,13 @@ class BackupRestoreViewModel @Inject constructor(
 
                 val restoreEntries =
                     entryNames.filter { name ->
-                        name == SETTINGS_XML_FILENAME ||
-                            name == SETTINGS_FILENAME ||
-                            name == InternalDatabase.DB_NAME ||
-                            name == "${InternalDatabase.DB_NAME}-wal" ||
-                            name == "${InternalDatabase.DB_NAME}-shm" ||
-                            name == "${InternalDatabase.DB_NAME}-journal" ||
+                        val base = name.substringAfterLast('/')
+                        base == SETTINGS_XML_FILENAME ||
+                            base == SETTINGS_FILENAME ||
+                            base == InternalDatabase.DB_NAME ||
+                            base == "${InternalDatabase.DB_NAME}-wal" ||
+                            base == "${InternalDatabase.DB_NAME}-shm" ||
+                            base == "${InternalDatabase.DB_NAME}-journal" ||
                             BackupWriter.isOfflineMusicEntry(name)
                     }
 
@@ -286,7 +288,8 @@ class BackupRestoreViewModel @Inject constructor(
                                 entry = zip.nextEntry
                                 continue
                             }
-                            when (name) {
+                            val base = name.substringAfterLast('/')
+                            when (base) {
                                 SETTINGS_XML_FILENAME -> {
                                     emit(context.getString(R.string.restore_step_restoring_settings), indeterminate = true)
                                     restoreSettingsFromXml(context, zip)
@@ -303,8 +306,8 @@ class BackupRestoreViewModel @Inject constructor(
                                 "${InternalDatabase.DB_NAME}-wal",
                                 "${InternalDatabase.DB_NAME}-shm",
                                 "${InternalDatabase.DB_NAME}-journal" -> {
-                                    emit(context.getString(R.string.restore_step_restoring_file, name), indeterminate = true)
-                                    val dbFile = context.getDatabasePath(name)
+                                    emit(context.getString(R.string.restore_step_restoring_file, base), indeterminate = true)
+                                    val dbFile = context.getDatabasePath(base)
                                     if (dbFile.exists()) {
                                         dbFile.delete()
                                     }
@@ -334,8 +337,8 @@ class BackupRestoreViewModel @Inject constructor(
                                                 zip.copyTo(out)
                                             }
                                         }
-                                    } else {
-                                        val dbFile = context.getDatabasePath(name)
+                                    } else if (PlayerCacheDatabaseProvider.isBackupIndexEntry(base)) {
+                                        val dbFile = context.getDatabasePath(base)
                                         FileOutputStream(dbFile).use { out ->
                                             zip.copyTo(out)
                                         }

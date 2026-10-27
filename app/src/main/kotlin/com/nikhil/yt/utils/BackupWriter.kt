@@ -25,6 +25,8 @@ object BackupWriter {
     /** Zip entry prefix under which offline stream-cache files travel. */
     const val OFFLINE_DIR_ENTRY_PREFIX = "exoplayer/"
 
+    const val SETTINGS_XML_FILENAME = "settings.xml"
+
     fun isOfflineMusicEntry(name: String): Boolean =
         name.startsWith(OFFLINE_DIR_ENTRY_PREFIX) ||
             PlayerCacheDatabaseProvider.isBackupIndexEntry(name)
@@ -56,6 +58,9 @@ object BackupWriter {
     suspend fun writeSettingsXml(context: Context, zip: ZipOutputStream) {
         val prefs = context.dataStore.data.first().asMap()
         val serializer = android.util.Xml.newSerializer()
+        // The settings XML is its own zip entry; writing without opening one
+        // makes ZipOutputStream throw and leaves the backup file empty.
+        zip.putNextEntry(ZipEntry(SETTINGS_XML_FILENAME))
         serializer.setOutput(zip, "UTF-8")
         serializer.startDocument("UTF-8", true)
         serializer.startTag(null, "VeluneBackup")
@@ -94,6 +99,7 @@ object BackupWriter {
         serializer.endTag(null, "VeluneBackup")
         serializer.endDocument()
         serializer.flush()
+        zip.closeEntry()
     }
 
     /**
