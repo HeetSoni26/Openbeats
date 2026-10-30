@@ -84,6 +84,29 @@ constructor(
                 val songSortType = sortType.toSongSortType()
                 when (playlist) {
                     "liked" -> database.likedSongs(songSortType, descending, hideVideo).map { it.filterExplicit(hideExplicit) }
+                    "recently_played" -> database.songsByLastPlayedAsc().map { songs ->
+                        // Natural order (CREATE_DATE) is the DAO's own: least recent play first.
+                        val sorted = when (songSortType) {
+                            SongSortType.CREATE_DATE -> songs
+                            SongSortType.NAME -> songs.sortedBy { it.song.title }
+                            SongSortType.ARTIST -> songs.sortedBy { song ->
+                                song.artists.joinToString(separator = "") { artist -> artist.name }
+                            }
+                            SongSortType.PLAY_TIME -> songs.sortedBy { it.song.totalPlayTime }
+                        }
+                        sorted.reversed(descending).filterExplicit(hideExplicit)
+                    }
+                    "recently_added" -> database.songsByCreateDateAsc().map { songs ->
+                        val sorted = when (songSortType) {
+                            SongSortType.CREATE_DATE -> songs
+                            SongSortType.NAME -> songs.sortedBy { it.song.title }
+                            SongSortType.ARTIST -> songs.sortedBy { song ->
+                                song.artists.joinToString(separator = "") { artist -> artist.name }
+                            }
+                            SongSortType.PLAY_TIME -> songs.sortedBy { it.song.totalPlayTime }
+                        }
+                        sorted.reversed(descending).filterExplicit(hideExplicit)
+                    }
                     "downloaded" -> downloadUtil.downloads.flatMapLatest { downloads ->
                         database.allSongs()
                             .flowOn(Dispatchers.IO)

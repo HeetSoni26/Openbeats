@@ -70,6 +70,8 @@ import com.nikhil.yt.constants.ShowLikedPlaylistKey
 import com.nikhil.yt.constants.ShowDownloadedPlaylistKey
 import com.nikhil.yt.constants.ShowTopPlaylistKey
 import com.nikhil.yt.constants.ShowCachedPlaylistKey
+import com.nikhil.yt.constants.ShowRecentlyAddedKey
+import com.nikhil.yt.constants.ShowRecentlyPlayedKey
 import com.nikhil.yt.constants.UseNewLibraryDesignKey
 import com.nikhil.yt.constants.YtmSyncKey
 import com.nikhil.yt.db.entities.Album
@@ -177,10 +179,32 @@ fun LibraryMixScreen(
             songThumbnails = emptyList(),
         )
 
+    val recentlyPlayedPlaylist =
+        Playlist(
+            playlist = PlaylistEntity(
+                id = UUID.randomUUID().toString(),
+                name = stringResource(R.string.recently_played)
+            ),
+            songCount = 0,
+            songThumbnails = emptyList(),
+        )
+
+    val recentlyAddedPlaylist =
+        Playlist(
+            playlist = PlaylistEntity(
+                id = UUID.randomUUID().toString(),
+                name = stringResource(R.string.recently_added)
+            ),
+            songCount = 0,
+            songThumbnails = emptyList(),
+        )
+
     val (showLiked) = rememberPreference(ShowLikedPlaylistKey, true)
     val (showDownloaded) = rememberPreference(ShowDownloadedPlaylistKey, true)
     val (showTop) = rememberPreference(ShowTopPlaylistKey, true)
     val (showCached) = rememberPreference(ShowCachedPlaylistKey, true)
+    val (showRecentlyPlayed) = rememberPreference(ShowRecentlyPlayedKey, true)
+    val (showRecentlyAdded) = rememberPreference(ShowRecentlyAddedKey, true)
     val (useNewLibraryDesign) = rememberPreference(UseNewLibraryDesignKey, false)
 
     val albums = viewModel.albums.collectAsState()
@@ -506,6 +530,44 @@ fun LibraryMixScreen(
                                     .fillMaxWidth()
                                     .clickable {
                                         navController.navigate("cache_playlist/cached")
+                                    }
+                                    .animateItem(),
+                            )
+                        }
+                    }
+
+                    if (showRecentlyPlayed) {
+                        item(
+                            key = "recentlyPlayedPlaylist",
+                            contentType = { CONTENT_TYPE_PLAYLIST },
+                        ) {
+                            PlaylistListItem(
+                                playlist = recentlyPlayedPlaylist,
+                                autoPlaylist = true,
+                                modifier =
+                                Modifier
+                                    .fillMaxWidth()
+                                    .clickable {
+                                        navController.navigate("auto_playlist/recently_played")
+                                    }
+                                    .animateItem(),
+                            )
+                        }
+                    }
+
+                    if (showRecentlyAdded) {
+                        item(
+                            key = "recentlyAddedPlaylist",
+                            contentType = { CONTENT_TYPE_PLAYLIST },
+                        ) {
+                            PlaylistListItem(
+                                playlist = recentlyAddedPlaylist,
+                                autoPlaylist = true,
+                                modifier =
+                                Modifier
+                                    .fillMaxWidth()
+                                    .clickable {
+                                        navController.navigate("auto_playlist/recently_added")
                                     }
                                     .animateItem(),
                             )
@@ -867,6 +929,50 @@ fun LibraryMixScreen(
                                     .combinedClickable(
                                         onClick = {
                                             navController.navigate("cache_playlist/cached")
+                                        },
+                                    )
+                                    .animateItem(),
+                            )
+                        }
+                    }
+
+                    if (showRecentlyPlayed) {
+                        item(
+                            key = "recentlyPlayedPlaylist",
+                            contentType = { CONTENT_TYPE_PLAYLIST },
+                        ) {
+                            PlaylistGridItem(
+                                playlist = recentlyPlayedPlaylist,
+                                fillMaxWidth = true,
+                                autoPlaylist = true,
+                                modifier =
+                                Modifier
+                                    .fillMaxWidth()
+                                    .combinedClickable(
+                                        onClick = {
+                                            navController.navigate("auto_playlist/recently_played")
+                                        },
+                                    )
+                                    .animateItem(),
+                            )
+                        }
+                    }
+
+                    if (showRecentlyAdded) {
+                        item(
+                            key = "recentlyAddedPlaylist",
+                            contentType = { CONTENT_TYPE_PLAYLIST },
+                        ) {
+                            PlaylistGridItem(
+                                playlist = recentlyAddedPlaylist,
+                                fillMaxWidth = true,
+                                autoPlaylist = true,
+                                modifier =
+                                Modifier
+                                    .fillMaxWidth()
+                                    .combinedClickable(
+                                        onClick = {
+                                            navController.navigate("auto_playlist/recently_added")
                                         },
                                     )
                                     .animateItem(),

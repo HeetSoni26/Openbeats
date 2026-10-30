@@ -82,6 +82,11 @@ interface DatabaseDao {
     @Query("SELECT * FROM song WHERE inLibrary IS NOT NULL ORDER BY inLibrary")
     fun songsByCreateDateAsc(): Flow<List<Song>>
 
+    /** One row per song, ordered by its most recent play event (oldest first). */
+    @Transaction
+    @Query("SELECT song.* FROM song JOIN event ON event.songId = song.id GROUP BY song.id ORDER BY MAX(event.timestamp)")
+    fun songsByLastPlayedAsc(): Flow<List<Song>>
+
     @Transaction
     @Query("SELECT * FROM song WHERE inLibrary IS NOT NULL ORDER BY title")
     fun songsByNameAsc(): Flow<List<Song>>

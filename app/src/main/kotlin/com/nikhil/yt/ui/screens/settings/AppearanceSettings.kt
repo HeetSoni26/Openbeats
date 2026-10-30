@@ -88,6 +88,8 @@ import com.nikhil.yt.constants.SliderStyle
 import com.nikhil.yt.constants.SliderStyleKey
 import com.nikhil.yt.constants.SlimNavBarKey
 import com.nikhil.yt.constants.ShowLikedPlaylistKey
+import com.nikhil.yt.constants.ShowRecentlyAddedKey
+import com.nikhil.yt.constants.ShowRecentlyPlayedKey
 import com.nikhil.yt.constants.ShowDownloadedPlaylistKey
 import com.nikhil.yt.constants.ShowHomeCategoryChipsKey
 import com.nikhil.yt.constants.ShowTopPlaylistKey
@@ -237,6 +239,14 @@ fun AppearanceSettings(
     )
     val (showCachedPlaylist, onShowCachedPlaylistChange) = rememberPreference(
         ShowCachedPlaylistKey,
+        defaultValue = true
+    )
+    val (showRecentlyPlayedPlaylist, onShowRecentlyPlayedPlaylistChange) = rememberPreference(
+        ShowRecentlyPlayedKey,
+        defaultValue = true
+    )
+    val (showRecentlyAddedPlaylist, onShowRecentlyAddedPlaylistChange) = rememberPreference(
+        ShowRecentlyAddedKey,
         defaultValue = true
     )
     val (showTagsInLibrary, onShowTagsInLibraryChange) = rememberPreference(
@@ -907,6 +917,20 @@ fun AppearanceSettings(
             icon = { Icon(painterResource(R.drawable.cached), null) },
             checked = showCachedPlaylist,
             onCheckedChange = onShowCachedPlaylistChange
+        )
+
+        SwitchPreference(
+            title = { Text(stringResource(R.string.show_recently_played_playlist)) },
+            icon = { Icon(painterResource(R.drawable.history), null) },
+            checked = showRecentlyPlayedPlaylist,
+            onCheckedChange = onShowRecentlyPlayedPlaylistChange
+        )
+
+        SwitchPreference(
+            title = { Text(stringResource(R.string.show_recently_added_playlist)) },
+            icon = { Icon(painterResource(R.drawable.library_add), null) },
+            checked = showRecentlyAddedPlaylist,
+            onCheckedChange = onShowRecentlyAddedPlaylistChange
         )
     }
 
